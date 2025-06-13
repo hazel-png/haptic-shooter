@@ -15,14 +15,16 @@
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
+            /* height: 100vh; を削除 - レイアウト崩れ対策 */
             position: relative;
             user-select: none;
+            width: 100vw; /* bodyがビューポート幅全体を占めるように */
+            min-height: 100vh; /* 少なくともビューポートの高さを持つように */
         }
 
         #radarCanvas {
             width: 100vw;
-            height: 100vh;
+            height: 100vh; /* Canvasがビューポート全体を占めるように */
             touch-action: none;
             display: block;
             position: absolute;
@@ -56,6 +58,7 @@
             outline: none;
             z-index: 10;
             overflow: hidden;
+            /* position: relative; が不要なため削除 */
         }
 
         #shootButton .icon {
@@ -321,7 +324,7 @@
         const gameOverScreen = document.getElementById("gameOverScreen");
         const finalScore = document.getElementById("finalScore");
         const restartButton = document.getElementById("restartButton");
-        const startScreen = document.getElementById("startScreen"); // 新しい要素
+        const startScreen = document.getElementById("startScreen");
 
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
@@ -363,45 +366,45 @@
             gameOverScreen.classList.remove("visible");
             playerAngle = 0;
             if (enemySpawnInterval) clearInterval(enemySpawnInterval);
-            enemySpawnInterval = setInterval(spawnEnemy, 1500);
+            enemySpawnInterval = setInterval(spawnEnemy, 2500); // 敵の出現間隔を延長
             gameLoop();
         }
 
         function requestDeviceOrientationPermissionAndStartGame() {
-            // AudioContextの初期化は、必ずユーザー操作のイベントリスナー内で行う
             if (!audioContext) {
                 audioContext = new (window.AudioContext || window.webkitAudioContext)();
             }
 
-            // iOS 13+ Safari の場合
             if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
                 DeviceOrientationEvent.requestPermission()
                     .then(permissionState => {
                         if (permissionState === 'granted') {
                             window.addEventListener("deviceorientation", handleDeviceOrientation);
-                            startScreen.classList.add('hidden'); // スタート画面を隠す
+                            startScreen.classList.add('hidden');
                             initGame();
                         } else {
                             alert('ジャイロセンサーの利用が拒否されました。ゲームをプレイできません。ブラウザの設定で許可が必要な場合があります。');
-                            // 拒否された場合、スタート画面はそのままにしておく
                         }
                     })
                     .catch(error => {
                         console.error("DeviceOrientationEvent.requestPermission error:", error);
                         alert('ジャイロセンサーの許可リクエスト中にエラーが発生しました。お使いのデバイスが対応しているか確認してください。');
-                        // エラーの場合もスタート画面はそのまま
                     });
             } else {
-                // requestPermission が存在しない (古いブラウザやAndroidなど) 場合
                 window.addEventListener("deviceorientation", handleDeviceOrientation);
-                startScreen.classList.add('hidden'); // スタート画面を隠す
+                startScreen.classList.add('hidden');
                 initGame();
             }
         }
 
         function handleDeviceOrientation(e) {
             if (e.alpha !== null) {
-                playerAngle = e.alpha * Math.PI / 180;
+                // ジャイロ回転を逆にするために、360度から現在の角度を引く
+                // または単に負の値を乗算する (-e.alpha)
+                // 多くのデバイスで正しく機能する調整: 2PI - (e.alpha * Math.PI / 180)
+                // あるいは、単に負の値を乗じることで反転させる
+                playerAngle = -e.alpha * Math.PI / 180;
+                // 必要であれば、特定のデバイスや向きに合わせてさらに調整 (例: + Math.PI / 2 など)
             }
         }
 
@@ -412,7 +415,7 @@
             enemies.push({
                 angle: angle,
                 distance: radius,
-                speed: 1.8 + Math.random() * 1.0,
+                speed: 1.0 + Math.random() * 0.5, // 敵の速度を低下
                 health: 1,
                 isApproaching: false
             });
@@ -635,13 +638,9 @@
         let enemySpawnInterval;
 
         window.onload = () => {
-            // ページロード時はスタート画面を表示し、他の要素は非表示（または操作不可）に保つ
             startScreen.classList.remove('hidden');
-            // 必要に応じてゲーム関連のUIを初期状態で非表示にするCSSを追加
-            // 例: shootButton.style.display = 'none'; など
         };
 
-        // スタート画面がクリックされたらゲーム開始処理を呼び出す
         startScreen.addEventListener('click', requestDeviceOrientationPermissionAndStartGame);
 
         window.addEventListener('resize', () => {
