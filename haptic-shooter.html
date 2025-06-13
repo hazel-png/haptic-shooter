@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+<title>バイブレーダーゲーム - プレイヤー矢印付き</title>
+<style>
+  body {
+    display: flex; flex-direction: column; align-items: center; font-family: Arial, sans-serif; margin-top: 50px;
+    -webkit-touch-callout: none; -webkit-user-select: none; user-select: none;
+  }
+  #radar {
+    width: 200px; height: 200px; border: 2px solid #333; border-radius: 50%; position: relative;
+    background: #f0f0f0;
+  }
+  .enemyDot {
+    position: absolute; width: 20px; height: 20px; background: red; border-radius: 50%;
+    transition: top 0.1s linear, left 0.1s linear;
+  }
+  #playerArrow {
+    position: absolute;
+    top: 50%; left: 50%;
+    width: 0; height: 0;
+    border-left: 15px solid transparent;
+    border-right: 15px solid transparent;
+    border-bottom: 25px solid #00aaff;
+    transform-origin: 50% 75%;
+    pointer-events: none;
+    user-select: none;
+    margin-left: -15px; /* 横幅半分ずらして中央に */
+    margin-top: -20px;  /* 縦方向少し上に */
+  }
+  #seekButton {
+    margin-top: 30px; padding: 15px 40px; font-size: 18px; border: none; background: #007aff; color: white; border-radius: 10px;
+    user-select: none;
+  }
+</style>
+</head>
+<body>
+  <h1>バイブレーダーゲーム</h1>
+  <div id="radar">
+    <div id="playerArrow"></div>
+  </div>
+  <button id="seekButton">SEEK</button>
+
+<script>
+  const seekButton = document.getElementById('seekButton');
+  const radar = document.getElementById('radar');
+  const playerArrow = document.getElementById('playerArrow');
+  const radius = 90;
+
+  let vibrateInterval = null;
+  let enemies = [];
+  let seeking = false;
+
+  function createEnemyDot() {
+    const dot = document.createElement('div');
+    dot.classList.add('enemyDot');
+    radar.appendChild(dot);
+    return dot;
+  }
+
+  function spawnEnemy() {
+    const enemy = {
+      distance: 100,
+      angle: Math.random() * 360,
+      element: createEnemyDot()
+    };
+    updateEnemyPosition(enemy);
+    enemies.push(enemy);
+  }
+
+  function updateEnemyPosition(enemy) {
+    const rad = enemy.angle * Math.PI / 180;
+    const x = radius + Math.cos(rad) * (radius * (enemy.distance / 100)) - 10;
+    const y = radius + Math.sin(rad) * (radius * (enemy.distance / 100)) - 10;
+    enemy.element.style.left = `${x}px`;
+    enemy.element.style.top = `${y}px`;
+  }
+
+  function getVibrationPattern(distance) {
+    if (distance < 10) return [300, 100];
+    if (distance < 30) return [150, 150];
+    if (distance < 60) return [80, 250];
+    return [20, 400];
+  }
+
+  function startVibration() {
+    if (vibrateInterval) return;
+    vibrateInterval = setInterval(() => {
+      if (!seeking) return;
+      if (enemies.length === 0) return;
+
+      const nearest = enemies.reduce((prev, curr) => prev.distance < curr.distance ? prev : curr);
+      const pattern = getVibrationPattern(nearest.distance);
+      navigator.vibrate(pattern);
+    }, 600);
+  }
+
+  function stopVibration() {
+    clearInterval(vibrateInterval);
+    vibrateInterval = null;
+    navigator.vibrate(0);
+  }
+
+  function gameLoop() {
+    for (let i = enemies.length -1; i >= 0; i--) {
+      enemies[i].distance -= 0.5;
+      if (enemies[i].distance <= 0) {
+        alert('ゲームオーバー！敵が近すぎる！');
+        resetGame();
+        return;
+      }
+      updateEnemyPosition(enemies[i]);
+    }
+  }
+
+  function defeatNearestEnemy() {
+    if (enemies.length === 0) return;
+
+    let nearestIndex = 0;
+    let minDist = enemies[0].distance;
+    for (let i = 1; i < enemies.length; i++) {
+      if (enemies[i].distance < minDist) {
+        minDist = enemies[i].distance;
+        nearestIndex = i;
+      }
+    }
+
+    radar.removeChild(enemies[nearestIndex].element);
+    enemies.splice(nearestIndex, 1);
+  }
+
+  function resetGame() {
+    stopVibration();
+    seeking = false;
+    enemies.forEach(enemy => radar.removeChild(enemy.element));
+    enemies = [];
+  }
+
+  function onSeekStart() {
+    seeking = true;
+    navigator.vibrate(100);
+    startVibration();
+  }
+
+  function onSeekEnd() {
+    seeking = false;
+    stopVibration();
+  }
+
+  seekButton.addEventListener('touchstart', onSeekStart);
+  seekButton.addEventListener('mousedown', onSeekStart);
+  seekButton.addEventListener('touchend', onSeekEnd);
+  seekButton.addEventListener('mouseup', onSeekEnd);
+  seekButton.addEventListener('mouseleave', onSeekEnd);
+
+  radar.addEventListener('click', () => {
+    if (seeking) {
+      defeatNearestEnemy();
+    }
+  });
+
+  setInterval(() => {
+    if (seeking) spawnEnemy();
+  }, 3000);
+
+  setInterval(gameLoop, 100);
+
+  // ジャイロでプレイヤーの向きを表示
+  window.addEventListener('deviceorientation', (event) => {
+    const angle = event.alpha ? event.alpha - 90 : 0;
+    playerArrow.style.transform = `rotate(${angle}deg)`;
+  });
+
+  // 初期敵スポーン
+  spawnEnemy();
+</script>
+</body>
+</html>
