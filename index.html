@@ -371,9 +371,14 @@
 
         let enemies = [];
         let playerAngle = 0;
-        // プレイヤーの位置座標を追加
+        // プレイヤーの位置座標
         let playerX = canvas.width / 2;
         let playerY = canvas.height / 2;
+        // プレイヤーの速度
+        let playerVelocityX = 0;
+        let playerVelocityY = 0;
+        const playerMoveSpeed = 0.8; // 加速度から速度への変換係数
+        const friction = 0.93; // 速度の減衰係数（摩擦）
 
         let score = 0;
         let isGameOver = false;
@@ -407,8 +412,11 @@
             scoreDisplay.textContent = "0";
             gameOverScreen.classList.remove("visible");
             playerAngle = 0;
-            playerX = canvas.width / 2; // 初期位置を中央にリセット
-            playerY = canvas.height / 2; // 初期位置を中央にリセット
+            // プレイヤーの位置と速度を初期化
+            playerX = canvas.width / 2;
+            playerY = canvas.height / 2;
+            playerVelocityX = 0;
+            playerVelocityY = 0;
 
             if (enemySpawnInterval) clearInterval(enemySpawnInterval);
             enemySpawnInterval = setInterval(spawnEnemy, 2500);
@@ -456,28 +464,22 @@
             if (currentTime - lastUpdateTime > UPDATE_INTERVAL) {
                 lastUpdateTime = currentTime;
                 if (e.accelerationIncludingGravity && e.accelerationIncludingGravity.x !== null) {
-                    const accelX = e.accelerationIncludingGravity.x;
-                    const accelY = e.accelerationIncludingGravity.y; // Y軸も利用
+                    const accelX = e.accelerationIncludingGravity.x; // 横方向の加速度
+                    const accelY = e.accelerationIncludingGravity.y; // 縦方向の加速度
 
                     // スムージングを適用
                     smoothedAccelX = smoothedAccelX * (1 - smoothingFactor) + accelX * smoothingFactor;
                     smoothedAccelY = smoothedAccelY * (1 - smoothingFactor) + accelY * smoothingFactor;
 
                     // プレイヤーの回転 (デバイスの左右の傾きを反映)
-                    // x軸の加速度を使って回転をコントロールする係数を大きく調整
+                    // x軸の加速度を使って回転をコントロールする係数を調整
                     playerAngle += -smoothedAccelX * 0.05; 
                     playerAngle = normalizeAngle(playerAngle);
 
-                    // プレイヤーの移動 (デバイスの傾きに応じて移動)
-                    // y軸の加速度で前後移動、x軸の加速度で左右移動をシミュレート
-                    // プレイヤーが中心から少し動くようにする
-                    const moveSpeed = 1.5; // 移動速度を調整
-                    playerX += -smoothedAccelX * moveSpeed;
-                    playerY += smoothedAccelY * moveSpeed;
-
-                    // プレイヤーが画面内にとどまるように制限
-                    playerX = Math.max(0, Math.min(canvas.width, playerX));
-                    playerY = Math.max(0, Math.min(canvas.height, playerY));
+                    // プレイヤーの速度を更新 (y軸の加速度で前後、x軸の加速度で左右移動をシミュレート)
+                    // 速度を直接加速度に比例させると急激な動きになるため、係数で調整
+                    playerVelocityX += -smoothedAccelX * playerMoveSpeed;
+                    playerVelocityY += smoothedAccelY * playerMoveSpeed;
                 }
             }
         }
@@ -485,44 +487,70 @@
         function spawnEnemy() {
             if (isGameOver) return;
             const angle = Math.random() * 2 * Math.PI;
-            // 敵の初期位置を画面の外側から出現させる
+            // 敵の初期位置を画面の外側から出現させる（プレイヤーの半径＋画面の最大幅の半分くらい）
             const spawnDistance = Math.max(canvas.width, canvas.height) / 1.5 + 50; 
             enemies.push({
                 angle: angle,
                 distance: spawnDistance,
-                speed: 0.5 + Math.random() * 0.3,
+                speed: 0.5 + Math.random() * 0.3, // 敵の移動速度
                 health: 1,
                 isApproaching: false
             });
         }
 
+        function updatePlayerPosition() {
+            // プレイヤーの位置を速度に基づいて更新
+            playerX += playerVelocityX;
+            playerY += playerVelocityY;
+
+            // 速度に摩擦を適用（徐々に減速）
+            playerVelocityX *= friction;
+            playerVelocityY *= friction;
+
+            // プレイヤーが画面内にとどまるように制限
+            if (playerX < 0) {
+                playerX = 0;
+                playerVelocityX = 0; // 壁に当たったら速度を0にする
+            } else if (playerX > canvas.width) {
+                playerX = canvas.width;
+                playerVelocityX = 0;
+            }
+
+            if (playerY < 0) {
+                playerY = 0;
+                playerVelocityY = 0;
+            } else if (playerY > canvas.height) {
+                playerY = canvas.height;
+                playerVelocityY = 0;
+            }
+        }
+
         function updateEnemies() {
             enemies.forEach(e => {
-                // 敵がプレイヤーの中心に向かって移動するように計算を変更
+                // 敵のワールド座標を計算
                 const enemyWorldX = playerX + e.distance * Math.cos(e.angle);
                 const enemyWorldY = playerY + e.distance * Math.sin(e.angle);
 
-                // 敵の目標位置 (プレイヤーの中心)
-                const targetX = playerX;
-                const targetY = playerY;
+                // 敵からプレイヤーへのベクトル
+                const dx = playerX - enemyWorldX;
+                const dy = playerY - enemyWorldY;
+                
+                // 敵の現在のプレイヤーとの距離
+                const currentDist = Math.sqrt(dx * dx + dy * dy);
 
-                // 敵から目標位置へのベクトル
-                const dx = targetX - enemyWorldX;
-                const dy = targetY - enemyWorldY;
-                const distToTarget = Math.sqrt(dx * dx + dy * dy);
-
-                // 敵の角度を目標位置の方向に向ける
+                // 敵の角度をプレイヤーの方向に向ける
                 e.angle = Math.atan2(dy, dx);
                 
                 // 敵の距離を更新（プレイヤーに向かってくる）
-                e.distance = distToTarget - e.speed;
+                e.distance = currentDist - e.speed;
 
                 if (e.distance < 150 && !e.isApproaching) {
                     e.isApproaching = true;
                 }
                 // 敵が一定距離に近づいたらパーティクルを生成
                 if (e.distance < 100 && Math.random() < 0.1) {
-                    createEnemyParticle(enemyWorldX, enemyWorldY);
+                    // 敵の現在の位置を渡す
+                    createEnemyParticle(playerX + e.distance * Math.cos(e.angle), playerY + e.distance * Math.sin(e.angle));
                 }
             });
             enemies = enemies.filter(e => {
@@ -614,6 +642,7 @@
 
         function gameLoop() {
             if (isGameOver) return;
+            updatePlayerPosition(); // プレイヤーの位置を更新
             updateEnemies();
             drawRadar();
             requestAnimationFrame(gameLoop);
@@ -634,7 +663,7 @@
             effect.className = "hit-effect";
             effect.style.left = `${x}px`;
             effect.style.top = `${y}px`;
-            effect.style.width = effect.style.height = `40px`; /* より大きく */
+            effect.style.width = effect.style.height = `40px`;
             document.body.appendChild(effect);
             setTimeout(() => effect.remove(), 300);
         }
@@ -671,7 +700,8 @@
         shootButton.addEventListener("click", () => {
             if (isGameOver || shootCooldown) return;
 
-            createShootVisual(playerX, playerY); // プレイヤーの位置から発射ビジュアルを生成
+            // プレイヤーの位置から発射ビジュアルを生成
+            createShootVisual(playerX, playerY);
             generateSound(880, 0.08, 'sine', 0.4);
 
             if (navigator.vibrate) {
@@ -694,11 +724,14 @@
             }, SHOOT_COOLDOWN_TIME);
 
             let hit = false;
-            const shootRange = Math.PI / 15;
+            const shootRange = Math.PI / 15; // 射撃の有効範囲（角度）
 
             enemies = enemies.filter(e => {
-                const diff = Math.abs(normalizeAngle(e.angle - playerAngle));
-                // 敵がプレイヤーからの相対的な距離で判断するように修正
+                // 敵とプレイヤーの間の角度差を計算
+                const angleToPlayer = normalizeAngle(Math.atan2(playerY - (playerY + e.distance * Math.sin(e.angle)), playerX - (playerX + e.distance * Math.cos(e.angle))));
+                const diff = Math.abs(normalizeAngle(playerAngle - angleToPlayer));
+
+                // 敵が射撃範囲内にいて、かつ一定距離以内ならヒット
                 if (diff < shootRange && e.distance < 300) { 
                     e.health--;
                     if (e.health <= 0) {
@@ -713,10 +746,10 @@
                             navigator.vibrate([40, 30, 40]);
                         }
                         generateSound(1000, 0.1, 'triangle', 0.5);
-                        return false;
+                        return false; // 敵を削除
                     }
                 }
-                return true;
+                return true; // 敵を残す
             });
         });
 
@@ -735,7 +768,7 @@
         window.addEventListener('resize', () => {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
-            // 画面サイズ変更時にプレイヤーの位置を再調整
+            // 画面サイズ変更時にプレイヤーの位置を中央に再調整
             playerX = canvas.width / 2;
             playerY = canvas.height / 2;
         });
