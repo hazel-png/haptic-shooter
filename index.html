@@ -1,50 +1,668 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
-<title>Haptic Shooter - SHOOTボタン追加</title>
-<style>
-  body { margin: 0; overflow: hidden; background: #111; color: #fff; font-family: sans-serif; }
-  #shootButton {
-    position: fixed;
-    bottom: 30px;
-    right: 30px;
-    width: 80px;
-    height: 80px;
-    background: #e33;
-    border-radius: 50%;
-    font-size: 1.5em;
-    border: none;
-    color: white;
-    box-shadow: 0 0 10px #e33;
-    user-select: none;
-  }
-  #shootButton:active {
-    background: #a00;
-    box-shadow: 0 0 20px #a00;
-  }
-</style>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Haptic Dot Shooter</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            /* 現代的でクリーンな背景グラデーション */
+            background: linear-gradient(135deg, #f0f2f5, #e0e5ec); /* 淡いグレー系のグラデーション */
+            overflow: hidden;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            color: #333; /* ダークグレー系のテキスト色 */
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            position: relative;
+            user-select: none; /* テキスト選択防止 */
+        }
+
+        #radarCanvas {
+            width: 100vw;
+            height: 100vh;
+            touch-action: none;
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+            /* レーダーの雰囲気も控えめに */
+            background: radial-gradient(circle at center, rgba(100, 100, 100, 0.03) 0%, rgba(0, 0, 0, 0) 70%);
+        }
+
+        #shootButton {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 80px; /* 少し小さめに */
+            height: 80px;
+            border-radius: 50%;
+            /* グラスモーフィズム */
+            background: rgba(255, 255, 255, 0.3); /* 白系の半透明 */
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            color: #555; /* 控えめなグレー */
+            font-size: 1.1rem;
+            font-weight: 600;
+            /* Apple風の影、しかし派手すぎない */
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.8) inset;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s ease-in-out;
+            cursor: pointer;
+            outline: none;
+            z-index: 10;
+            overflow: hidden;
+            position: relative;
+        }
+
+        #shootButton .icon {
+            font-size: 2.2rem; /* アイコンをシンプルに */
+            line-height: 1;
+            color: #555; /* デフォルトの色 */
+            transition: transform 0.1s ease-out, color 0.1s ease-out;
+        }
+
+        /* Nintendo風の弾けるアニメーション */
+        #shootButton:not(.cooldown):active {
+            transform: scale(0.95); /* まず少し縮む */
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(255, 255, 255, 0.8) inset;
+        }
+        #shootButton:not(.cooldown) .icon.bounce {
+            animation: shootButtonBounce 0.2s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards;
+            color: #007bff; /* ポップなアクセントカラー */
+        }
+        @keyframes shootButtonBounce {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.15); } /* 勢いよく飛び出す */
+            100% { transform: scale(1); }
+        }
+
+        /* クールダウン状態 */
+        #shootButton.cooldown {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.3);
+            color: rgba(100, 100, 100, 0.5);
+            box-shadow: none;
+            cursor: not-allowed;
+        }
+        #shootButton.cooldown .icon {
+            color: rgba(100, 100, 100, 0.5);
+        }
+
+        /* クールダウンバー */
+        #shootButton .cooldown-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 4px; /* バーの高さ */
+            background: #007bff; /* アクセントカラー */
+            transform-origin: left;
+            animation: cooldownFill linear forwards;
+        }
+        @keyframes cooldownFill {
+            from { transform: scaleX(0); }
+            to { transform: scaleX(1); }
+        }
+
+
+        .shoot-visual {
+            position: absolute;
+            background: rgba(0, 123, 255, 0.4); /* 撃った時の光をアクセントカラーで */
+            border-radius: 50%;
+            transform: translate(-50%, -50%) scale(0);
+            opacity: 0;
+            animation: shootVisual 0.3s ease-out forwards;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        @keyframes shootVisual {
+            0% {
+                transform: translate(-50%, -50%) scale(0.3);
+                opacity: 1;
+            }
+            100% {
+                transform: translate(-50%, -50%) scale(8);
+                opacity: 0;
+            }
+        }
+
+        .hit-effect {
+            position: absolute;
+            /* ポップで明るい色合いのヒットエフェクト */
+            background: radial-gradient(circle, rgba(0, 123, 255, 0.8) 0%, rgba(0, 123, 255, 0) 70%);
+            border-radius: 50%;
+            animation: hitEffect 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; /* ビョン！と弾けるようなイージング */
+            pointer-events: none;
+            z-index: 6;
+            transform-origin: center center;
+        }
+
+        @keyframes hitEffect {
+            0% {
+                transform: scale(0);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(2.5); /* 控えめに */
+                opacity: 0;
+            }
+        }
+
+        .score-popup {
+            position: absolute;
+            color: #007bff; /* ポップなアクセントカラー */
+            font-size: 1.6rem;
+            font-weight: 700;
+            font-family: 'Inter', sans-serif;
+            animation: scoreFadeOut 0.8s cubic-bezier(0.165, 0.84, 0.44, 1) forwards;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 7;
+            text-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        @keyframes scoreFadeOut {
+            0% {
+                transform: translateY(0) scale(1);
+                opacity: 1;
+            }
+            20% {
+                transform: translateY(-10px) scale(1.05);
+            }
+            100% {
+                transform: translateY(-40px) scale(0.8);
+                opacity: 0;
+            }
+        }
+
+        #scoreDisplay {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #333; /* デフォルトのテキスト色 */
+            text-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+            z-index: 10;
+            font-family: 'Inter', sans-serif;
+        }
+
+        #gameOverScreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            /* グラスモーフィズム + 暗めのオーバーレイ */
+            background: rgba(255, 255, 255, 0.8); /* 少し明るめのオーバーレイ */
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: #333;
+            font-size: 2rem;
+            z-index: 100;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.5s ease-in-out;
+        }
+
+        #gameOverScreen.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        #gameOverScreen h2 {
+            font-size: 4.5rem;
+            color: #dc3545; /* 赤系の警告色 */
+            margin-bottom: 20px;
+            text-shadow: 0 0 10px rgba(220, 53, 69, 0.3);
+        }
+
+        #finalScore {
+            font-size: 3.2rem;
+            margin-bottom: 40px;
+            color: #007bff; /* アクセントカラー */
+            text-shadow: 0 0 8px rgba(0, 123, 255, 0.2);
+            font-family: 'Inter', sans-serif;
+            font-weight: 600;
+        }
+
+        #restartButton {
+            padding: 16px 40px;
+            /* グラスモーフィズム */
+            background: rgba(255, 255, 255, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.7);
+            border-radius: 10px; /* より角丸に */
+            color: #007bff; /* アクセントカラー */
+            font-size: 1.6rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            font-family: 'Inter', sans-serif;
+        }
+
+        #restartButton:hover {
+            background: rgba(255, 255, 255, 0.7);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+            transform: translateY(-2px);
+        }
+        #restartButton:active {
+            transform: scale(0.95);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+        }
+
+
+        #permissionRequest {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.5rem;
+            z-index: 200;
+            text-align: center;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        #permissionRequest button {
+            padding: 15px 30px;
+            font-size: 1.2rem;
+            margin-top: 30px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background 0.2s ease-in-out;
+        }
+        #permissionRequest button:hover {
+            background: #0056b3;
+        }
+    </style>
 </head>
 <body>
+    <canvas id="radarCanvas"></canvas>
+    <button id="shootButton">
+        <span class="icon">●</span> <div class="cooldown-bar"></div>
+    </button>
+    <div id="scoreDisplay">0</div> <div id="gameOverScreen">
+        <h2>GAME OVER</h2>
+        <div id="finalScore">FINAL SCORE: 0</div>
+        <button id="restartButton">RESTART</button>
+    </div>
 
-<button id="shootButton">SHOOT</button>
+    <div id="permissionRequest" style="display: none;">
+        <p>ゲームを開始するために、<br>ジャイロセンサーの使用を許可してください。</p>
+        <button id="requestPermissionButton">許可する</button>
+    </div>
 
-<script>
-  const shootButton = document.getElementById('shootButton');
+    <script>
+        const canvas = document.getElementById("radarCanvas");
+        const ctx = canvas.getContext("2d");
+        const shootButton = document.getElementById("shootButton");
+        const shootButtonIcon = shootButton.querySelector('.icon');
+        const shootCooldownBar = shootButton.querySelector('.cooldown-bar');
+        const scoreDisplay = document.getElementById("scoreDisplay");
+        const gameOverScreen = document.getElementById("gameOverScreen");
+        const finalScore = document.getElementById("finalScore");
+        const restartButton = document.getElementById("restartButton");
+        const permissionRequest = document.getElementById("permissionRequest");
+        const requestPermissionButton = document.getElementById("requestPermissionButton");
 
-  shootButton.addEventListener('click', () => {
-    // ここで「撃つ」処理を実装
-    console.log('SHOOT！弾を発射！');
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
 
-    // 例：バイブを短く鳴らす（ユーザー操作なのでOK）
-    if (navigator.vibrate) {
-      navigator.vibrate(100);
-    }
+        let enemies = [];
+        let playerAngle = 0; // 0 = 右, PI/2 = 下, PI = 左, 3PI/2 = 上
+        const cx = canvas.width / 2;
+        const cy = canvas.height / 2;
+        let score = 0;
+        let isGameOver = false;
+        let shootCooldown = false;
+        const SHOOT_COOLDOWN_TIME = 500; // ms
 
-    // ここに敵を倒す判定やエフェクト処理を追加しよう
-  });
-</script>
+        // Web Audio API for sound effects
+        let audioContext;
 
+        // 簡易的な効果音の生成関数 (現代的な「ピッ」「ポン」音)
+        function generateSound(frequency, duration, type = 'sine', volume = 0.5) {
+            if (!audioContext) return;
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+
+            oscillator.type = type;
+            oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
+            gainNode.gain.setValueAtTime(volume, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + duration);
+
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + duration);
+        }
+
+        // ゲーム状態初期化
+        function initGame() {
+            enemies = [];
+            score = 0;
+            isGameOver = false;
+            shootCooldown = false;
+            scoreDisplay.textContent = "0";
+            gameOverScreen.classList.remove("visible");
+            playerAngle = 0;
+            if (enemySpawnInterval) clearInterval(enemySpawnInterval);
+            enemySpawnInterval = setInterval(spawnEnemy, 1500); // 敵の出現間隔
+            gameLoop();
+        }
+
+        // ジャイロセンサー許可要求 (iOS 13+ safari)
+        function requestDeviceOrientationPermission() {
+            if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+                DeviceOrientationEvent.requestPermission()
+                    .then(permissionState => {
+                        if (permissionState === 'granted') {
+                            window.addEventListener("deviceorientation", handleDeviceOrientation);
+                            permissionRequest.style.display = 'none';
+                            audioContext = new (window.AudioContext || window.webkitAudioContext)(); // オーディオコンテキスト初期化
+                            initGame();
+                        } else {
+                            alert('ジャイロセンサーの利用が拒否されました。ゲームをプレイできません。');
+                            permissionRequest.style.display = 'flex';
+                        }
+                    })
+                    .catch(console.error);
+            } else {
+                window.addEventListener("deviceorientation", handleDeviceOrientation);
+                permissionRequest.style.display = 'none';
+                audioContext = new (window.AudioContext || window.webkitAudioContext)(); // オーディオコンテキスト初期化
+                initGame();
+            }
+        }
+
+        function handleDeviceOrientation(e) {
+            if (e.alpha !== null) {
+                // デバイスの向きに応じて調整が必要な場合がある
+                playerAngle = e.alpha * Math.PI / 180;
+            }
+        }
+
+        function spawnEnemy() {
+            if (isGameOver) return;
+            const angle = Math.random() * 2 * Math.PI;
+            const radius = Math.max(canvas.width, canvas.height) / 2 + 50;
+            enemies.push({
+                angle: angle,
+                distance: radius,
+                speed: 1.8 + Math.random() * 1.0, // 敵の速度
+                health: 1,
+                isApproaching: false // 接近警告振動用フラグ
+            });
+        }
+
+        function updateEnemies() {
+            enemies.forEach(e => {
+                e.distance -= e.speed;
+                // 接近警告振動のロジック
+                if (e.distance < 150 && !e.isApproaching) { // 警告距離を調整
+                    e.isApproaching = true;
+                    if (navigator.vibrate) {
+                        // 短く弱い警告振動（現代的）
+                        navigator.vibrate([30, 20, 30]);
+                        generateSound(440, 0.05, 'sawtooth', 0.3); // 警告音（低め）
+                    }
+                }
+            });
+            enemies = enemies.filter(e => {
+                if (e.distance <= 15) { // 中心に到達
+                    endGame();
+                    return false;
+                }
+                return true;
+            });
+        }
+
+        function drawRadar() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 背景の微細なノイズ/パーティクル (Apple風の洗練)
+            for (let i = 0; i < 60; i++) {
+                ctx.fillStyle = `rgba(0, 0, 0, ${0.01 + Math.random() * 0.03})`;
+                ctx.beginPath();
+                ctx.arc(Math.random() * canvas.width, Math.random() * canvas.height, 0.7, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+
+            // 同心円グリッド (非常にシンプルで淡く)
+            ctx.strokeStyle = "rgba(100, 100, 100, 0.1)"; /* より薄いグレー */
+            ctx.lineWidth = 0.5; /* より細く */
+            for (let i = 1; i <= 5; i++) {
+                ctx.beginPath();
+                ctx.arc(cx, cy, i * 80, 0, 2 * Math.PI);
+                ctx.stroke();
+            }
+
+            // 中心点 (よりミニマルなプレイヤー表示)
+            ctx.fillStyle = "#333"; /* 黒系の色 */
+            ctx.beginPath();
+            ctx.arc(cx, cy, 4, 0, 2 * Math.PI);
+            ctx.fill();
+
+            // プレイヤーの向きライン (シンプルに)
+            ctx.strokeStyle = "#007bff"; /* アクセントカラー */
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.lineTo(cx + 80 * Math.cos(playerAngle), cy + 80 * Math.sin(playerAngle));
+            ctx.stroke();
+
+            // 敵 (ミニマルな点と現代的な色変化)
+            enemies.forEach(e => {
+                const ex = cx + e.distance * Math.cos(e.angle);
+                const ey = cy + e.distance * Math.sin(e.angle);
+
+                let enemyColor = "#888"; /* デフォルトはグレー */
+                let enemySize = 5;
+                let doBlink = false;
+
+                if (e.distance < 80) { /* 非常に近い (警告) */
+                    enemyColor = "#dc3545"; /* 赤系の警告色 */
+                    enemySize = 5 + (80 - e.distance) / 10;
+                    doBlink = (Math.floor(Date.now() / 150) % 2 === 0);
+                } else if (e.distance < 180) { /* 近い */
+                    enemyColor = "#ffc107"; /* 黄色系の注意色 */
+                    enemySize = 5 + (180 - e.distance) / 20;
+                } else { /* 通常 */
+                    enemyColor = "#007bff"; /* アクセントカラー */
+                    enemySize = 5;
+                }
+
+                ctx.fillStyle = doBlink ? "#dc3545" : enemyColor; /* 点滅時は赤 */
+                ctx.beginPath();
+                ctx.arc(ex, ey, enemySize, 0, 2 * Math.PI);
+                ctx.fill();
+            });
+        }
+
+        function detectEnemy() {
+            if (isGameOver) return;
+            const detectionAngleRange = 0.2; // ラジアン (約11.5度)
+
+            enemies.forEach(e => {
+                const diff = Math.abs(normalizeAngle(e.angle - playerAngle));
+
+                if (diff < detectionAngleRange) {
+                    let vibStrength;
+                    if (e.distance < 60) { // 極めて近い
+                        vibStrength = [80, 40, 80]; // 短いパルス
+                    } else if (e.distance < 120) { // かなり近い
+                        vibStrength = [50, 30, 50];
+                    } else if (e.distance < 200) { // 近い
+                        vibStrength = [30];
+                    } else { // 遠い
+                        vibStrength = [10]; // 最も弱い
+                    }
+
+                    if (navigator.vibrate) {
+                        navigator.vibrate(vibStrength);
+                    }
+                }
+            });
+        }
+
+        function normalizeAngle(angle) {
+            return Math.atan2(Math.sin(angle), Math.cos(angle));
+        }
+
+        function gameLoop() {
+            if (isGameOver) return;
+            updateEnemies();
+            drawRadar();
+            detectEnemy();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function createShootVisual(x, y) {
+            const visual = document.createElement("div");
+            visual.className = "shoot-visual";
+            visual.style.left = `${x}px`;
+            visual.style.top = `${y}px`;
+            visual.style.width = visual.style.height = `20px`;
+            document.body.appendChild(visual);
+            setTimeout(() => visual.remove(), 300);
+        }
+
+        function createHitEffect(x, y) {
+            const effect = document.createElement("div");
+            effect.className = "hit-effect";
+            effect.style.left = `${x}px`;
+            effect.style.top = `${y}px`;
+            effect.style.width = effect.style.height = `30px`;
+            document.body.appendChild(effect);
+            setTimeout(() => effect.remove(), 300);
+        }
+
+        function showScorePopup(x, y, value) {
+            const popup = document.createElement("div");
+            popup.className = "score-popup";
+            popup.textContent = `+${value}`;
+            popup.style.left = `${x}px`;
+            popup.style.top = `${y}px`;
+            document.body.appendChild(popup);
+            setTimeout(() => popup.remove(), 800);
+        }
+
+        function updateScore(points) {
+            score += points;
+            scoreDisplay.textContent = score.toString(); // 数値のみ表示
+        }
+
+        function endGame() {
+            if (isGameOver) return;
+            isGameOver = true;
+            if (navigator.vibrate) {
+                // ゲームオーバー時の振動をシンプルに
+                navigator.vibrate([200, 100, 200]);
+            }
+            generateSound(200, 0.4, 'square', 0.6); // ゲームオーバー音（低く重く）
+
+            if (enemySpawnInterval) clearInterval(enemySpawnInterval);
+            finalScore.textContent = `FINAL SCORE: ${score}`;
+            gameOverScreen.classList.add("visible");
+        }
+
+
+        // SHOOTボタンのイベントリスナー
+        shootButton.addEventListener("click", () => {
+            if (isGameOver || shootCooldown) return;
+
+            // 射撃時の視覚エフェクト
+            createShootVisual(cx, cy);
+            generateSound(880, 0.08, 'sine', 0.4); // 射撃時の「ピッ」音
+
+            // Nintendo風の弾けるアニメーション
+            shootButtonIcon.classList.add('bounce');
+            setTimeout(() => {
+                shootButtonIcon.classList.remove('bounce');
+            }, 200);
+
+            shootCooldown = true;
+            shootButton.classList.add("cooldown");
+            shootCooldownBar.style.animation = `cooldownFill ${SHOOT_COOLDOWN_TIME / 1000}s linear forwards`;
+
+            setTimeout(() => {
+                shootCooldown = false;
+                shootButton.classList.remove("cooldown");
+                shootCooldownBar.style.animation = '';
+            }, SHOOT_COOLDOWN_TIME);
+
+            let hit = false;
+            const shootRange = Math.PI / 15; // 射撃範囲（より狭く）
+
+            enemies = enemies.filter(e => {
+                const diff = Math.abs(normalizeAngle(e.angle - playerAngle));
+                if (diff < shootRange && e.distance < 300) { // 射程距離を調整
+                    e.health--;
+                    if (e.health <= 0) {
+                        const ex = cx + e.distance * Math.cos(e.angle);
+                        const ey = cy + e.distance * Math.sin(e.angle);
+                        createHitEffect(ex, ey);
+                        updateScore(100);
+                        showScorePopup(ex, ey, 100);
+                        hit = true;
+                        if (navigator.vibrate) {
+                            navigator.vibrate([100]); // 敵撃破時のシンプル振動
+                        }
+                        generateSound(1000, 0.1, 'triangle', 0.5); // ヒット音（ポップ）
+                        return false;
+                    }
+                }
+                return true;
+            });
+        });
+
+        restartButton.addEventListener("click", () => {
+            initGame();
+        });
+
+        let enemySpawnInterval;
+
+        window.onload = () => {
+            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                permissionRequest.style.display = 'flex';
+                requestPermissionButton.addEventListener('click', requestDeviceOrientationPermission);
+            } else {
+                permissionRequest.style.display = 'none';
+                audioContext = new (window.AudioContext || window.webkitAudioContext)(); // オーディオコンテキスト初期化
+                initGame();
+            }
+        };
+
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+
+    </script>
 </body>
 </html>
