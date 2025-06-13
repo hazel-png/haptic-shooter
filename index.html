@@ -42,14 +42,18 @@
             max-width: 400px;
             height: 60px;
             border-radius: 30px;
-            background: rgba(255, 255, 255, 0.4);
+            /* Liquid Glass 風のスタイル調整 */
+            background: rgba(255, 255, 255, 0.2); /* より透明に */
             backdrop-filter: blur(20px);
             -webkit-backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.4); /* より繊細なボーダー */
             color: #555;
             font-size: 1.5rem;
             font-weight: 600;
-            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15), 0 0 0 1px rgba(255, 255, 255, 0.9) inset;
+            /* 広範囲に薄い影と内側の明るいハイライト */
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1), /* 広範囲の影 */
+                        0 0 0 1px rgba(255, 255, 255, 0.8) inset, /* 上部の明るいハイライト */
+                        0 0 0 2px rgba(255, 255, 255, 0.4) inset; /* 下部のぼやけたハイライト */
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -70,7 +74,10 @@
 
         #shootButton:not(.cooldown):active {
             transform: translateX(-50%) scale(0.95);
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.8) inset;
+            /* アクティブ時の影を調整 */
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08),
+                        0 0 0 1px rgba(255, 255, 255, 0.7) inset,
+                        0 0 0 2px rgba(255, 255, 255, 0.3) inset;
         }
         #shootButton:not(.cooldown) .icon.bounce {
             animation: shootButtonBounce 0.2s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards;
@@ -147,6 +154,27 @@
             }
             100% {
                 transform: scale(2.5);
+                opacity: 0;
+            }
+        }
+
+        .enemy-particle {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 50%;
+            opacity: 0;
+            animation: particleFade 0.8s ease-out forwards;
+            pointer-events: none;
+            z-index: 4; /* 敵より手前 */
+        }
+
+        @keyframes particleFade {
+            0% {
+                transform: scale(0.2);
+                opacity: 0.8;
+            }
+            100% {
+                transform: scale(1.5);
                 opacity: 0;
             }
         }
@@ -311,7 +339,7 @@
 
     <div id="startScreen">
         <p>TAP TO START</p>
-        <span>(ジャイロセンサーと音声を有効にします)</span>
+        <span>(センサーと音声を有効にします)</span>
     </div>
 
     <script>
@@ -370,37 +398,47 @@
             gameLoop();
         }
 
-        function requestDeviceOrientationPermissionAndStartGame() {
+        function requestSensorPermissionAndStartGame() {
             if (!audioContext) {
                 audioContext = new (window.AudioContext || window.webkitAudioContext)();
             }
 
-            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-                DeviceOrientationEvent.requestPermission()
+            if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+                DeviceMotionEvent.requestPermission()
                     .then(permissionState => {
                         if (permissionState === 'granted') {
-                            window.addEventListener("deviceorientation", handleDeviceOrientation);
+                            window.addEventListener("devicemotion", handleDeviceMotion);
                             startScreen.classList.add('hidden');
                             initGame();
                         } else {
-                            alert('ジャイロセンサーの利用が拒否されました。ゲームをプレイできません。ブラウザの設定で許可が必要な場合があります。');
+                            alert('加速度センサーの利用が拒否されました。ゲームをプレイできません。ブラウザの設定で許可が必要な場合があります。');
                         }
                     })
                     .catch(error => {
-                        console.error("DeviceOrientationEvent.requestPermission error:", error);
-                        alert('ジャイロセンサーの許可リクエスト中にエラーが発生しました。お使いのデバイスが対応しているか確認してください。');
+                        console.error("DeviceMotionEvent.requestPermission error:", error);
+                        alert('加速度センサーの許可リクエスト中にエラーが発生しました。お使いのデバイスが対応しているか確認してください。');
                     });
             } else {
-                window.addEventListener("deviceorientation", handleDeviceOrientation);
+                window.addEventListener("devicemotion", handleDeviceMotion);
                 startScreen.classList.add('hidden');
                 initGame();
             }
         }
 
-        function handleDeviceOrientation(e) {
-            if (e.alpha !== null) {
-                // ジャイロ回転を逆にするために、360度から現在の角度を引く
-                playerAngle = -e.alpha * Math.PI / 180;
+        let lastUpdateTime = 0;
+        const UPDATE_INTERVAL = 16; // 約60fps
+
+        function handleDeviceMotion(e) {
+            const currentTime = performance.now();
+            if (currentTime - lastUpdateTime > UPDATE_INTERVAL) {
+                lastUpdateTime = currentTime;
+                if (e.accelerationIncludingGravity && e.accelerationIncludingGravity.x !== null) {
+                    // x軸の加速度をプレイヤーの角度に反映
+                    // 加速度の値が大きすぎないように係数を調整
+                    playerAngle += -e.accelerationIncludingGravity.x * 0.005; // 感度をさらに微調整
+                    // 角度が-PIからPIの範囲に収まるように正規化
+                    playerAngle = normalizeAngle(playerAngle);
+                }
             }
         }
 
@@ -411,7 +449,7 @@
             enemies.push({
                 angle: angle,
                 distance: radius,
-                speed: 0.5 + Math.random() * 0.3, // 敵の速度をさらに低下
+                speed: 0.5 + Math.random() * 0.3,
                 health: 1,
                 isApproaching: false
             });
@@ -422,10 +460,15 @@
                 e.distance -= e.speed;
                 if (e.distance < 150 && !e.isApproaching) {
                     e.isApproaching = true;
-                    if (navigator.vibrate) {
-                        navigator.vibrate([30, 20, 30]);
-                        generateSound(440, 0.05, 'sawtooth', 0.3);
-                    }
+                    // 敵が近づいてきた時の振動は削除
+                    // if (navigator.vibrate) {
+                    //     navigator.vibrate([30, 20, 30]);
+                    //     generateSound(440, 0.05, 'sawtooth', 0.3);
+                    // }
+                }
+                // 敵が一定距離に近づいたらパーティクルを生成
+                if (e.distance < 100 && Math.random() < 0.1) {
+                    createEnemyParticle(cx + e.distance * Math.cos(e.angle), cy + e.distance * Math.sin(e.angle));
                 }
             });
             enemies = enemies.filter(e => {
@@ -435,6 +478,17 @@
                 }
                 return true;
             });
+        }
+
+        function createEnemyParticle(x, y) {
+            const particle = document.createElement("div");
+            particle.className = "enemy-particle";
+            const size = Math.random() * 4 + 2;
+            particle.style.width = particle.style.height = `${size}px`;
+            particle.style.left = `${x + (Math.random() - 0.5) * 20}px`;
+            particle.style.top = `${y + (Math.random() - 0.5) * 20}px`;
+            document.body.appendChild(particle);
+            setTimeout(() => particle.remove(), 800);
         }
 
         function drawRadar() {
@@ -471,53 +525,34 @@
                 const ex = cx + e.distance * Math.cos(e.angle);
                 const ey = cy + e.distance * Math.sin(e.angle);
 
-                let enemyColor = "#888";
+                let enemyColor = "#007bff";
                 let enemySize = 5;
                 let doBlink = false;
 
-                if (e.distance < 80) {
-                    enemyColor = "#dc3545";
-                    enemySize = 5 + (80 - e.distance) / 10;
-                    doBlink = (Math.floor(Date.now() / 150) % 2 === 0);
-                } else if (e.distance < 180) {
-                    enemyColor = "#ffc107";
-                    enemySize = 5 + (180 - e.distance) / 20;
+                if (e.distance < 70) {
+                    enemyColor = "#ff4d4d";
+                    enemySize = 8 + (70 - e.distance) / 7;
+                    doBlink = (Math.floor(Date.now() / 100) % 2 === 0);
+                } else if (e.distance < 150) {
+                    enemyColor = "#ff9900";
+                    enemySize = 6 + (150 - e.distance) / 20;
                 } else {
                     enemyColor = "#007bff";
                     enemySize = 5;
                 }
 
-                ctx.fillStyle = doBlink ? "#dc3545" : enemyColor;
+                ctx.fillStyle = doBlink ? "#ff4d4d" : enemyColor;
                 ctx.beginPath();
                 ctx.arc(ex, ey, enemySize, 0, 2 * Math.PI);
                 ctx.fill();
             });
         }
 
+        // 敵の方向バイブレーションを削除したため、この関数はもはや不要ですが、
+        // 将来的な拡張のために残しておきます（中身は空です）。
         function detectEnemy() {
             if (isGameOver) return;
-            const detectionAngleRange = 0.2;
-
-            enemies.forEach(e => {
-                const diff = Math.abs(normalizeAngle(e.angle - playerAngle));
-
-                if (diff < detectionAngleRange) {
-                    let vibStrength;
-                    if (e.distance < 60) {
-                        vibStrength = [80, 40, 80];
-                    } else if (e.distance < 120) {
-                        vibStrength = [50, 30, 50];
-                    } else if (e.distance < 200) {
-                        vibStrength = [30];
-                    } else {
-                        vibStrength = [10];
-                    }
-
-                    if (navigator.vibrate) {
-                        navigator.vibrate(vibStrength);
-                    }
-                }
-            });
+            // 敵の方向バイブレーションは削除
         }
 
         function normalizeAngle(angle) {
@@ -528,7 +563,7 @@
             if (isGameOver) return;
             updateEnemies();
             drawRadar();
-            detectEnemy();
+            detectEnemy(); // 空の関数ですが、呼び出しは残しておく
             requestAnimationFrame(gameLoop);
         }
 
@@ -571,7 +606,7 @@
             if (isGameOver) return;
             isGameOver = true;
             if (navigator.vibrate) {
-                navigator.vibrate([200, 100, 200]);
+                navigator.vibrate([200, 100, 200]); // ゲームオーバー時の振動は維持
             }
             generateSound(200, 0.4, 'square', 0.6);
 
@@ -586,6 +621,11 @@
 
             createShootVisual(cx, cy);
             generateSound(880, 0.08, 'sine', 0.4);
+
+            // シュート時のバイブレーションを追加
+            if (navigator.vibrate) {
+                navigator.vibrate([50]); // 短く1回振動
+            }
 
             shootButtonIcon.classList.add('bounce');
             setTimeout(() => {
@@ -616,8 +656,9 @@
                         updateScore(100);
                         showScorePopup(ex, ey, 100);
                         hit = true;
+                        // 敵を倒した時のバイブレーションを変更
                         if (navigator.vibrate) {
-                            navigator.vibrate([100]);
+                            navigator.vibrate([30, 20, 30]); // ヒットを強調するパターン
                         }
                         generateSound(1000, 0.1, 'triangle', 0.5);
                         return false;
@@ -637,7 +678,7 @@
             startScreen.classList.remove('hidden');
         };
 
-        startScreen.addEventListener('click', requestDeviceOrientationPermissionAndStartGame);
+        startScreen.addEventListener('click', requestSensorPermissionAndStartGame);
 
         window.addEventListener('resize', () => {
             canvas.width = window.innerWidth;
