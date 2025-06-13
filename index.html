@@ -34,19 +34,17 @@
 
         #shootButton {
             position: fixed;
-            /* 下中央に移動 */
-            bottom: 60px; /* 下からの距離を増やす */
-            left: 50%; /* 左端から50% */
-            transform: translateX(-50%); /* 自身の幅の半分だけ左に戻し、中央揃え */
-            width: 80px;
-            height: 80px;
+            bottom: 40px;
+            left: 40px;
+            width: 100px;
+            height: 100px;
             border-radius: 50%;
             background: rgba(255, 255, 255, 0.3);
             backdrop-filter: blur(15px);
             -webkit-backdrop-filter: blur(15px);
             border: 1px solid rgba(255, 255, 255, 0.5);
             color: #555;
-            font-size: 1.1rem;
+            font-size: 1.3rem;
             font-weight: 600;
             box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1), 0 0 0 1px rgba(255, 255, 255, 0.8) inset;
             display: flex;
@@ -58,19 +56,17 @@
             outline: none;
             z-index: 10;
             overflow: hidden;
-            position: relative;
         }
 
         #shootButton .icon {
-            font-size: 2.2rem;
+            font-size: 2.8rem;
             line-height: 1;
             color: #555;
             transition: transform 0.1s ease-out, color 0.1s ease-out;
         }
 
-        /* Nintendo風の弾けるアニメーション */
         #shootButton:not(.cooldown):active {
-            transform: translateX(-50%) scale(0.95); /* 中央揃えを維持しながら縮む */
+            transform: scale(0.95);
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08), 0 0 0 1px rgba(255, 255, 255, 0.8) inset;
         }
         #shootButton:not(.cooldown) .icon.bounce {
@@ -83,7 +79,6 @@
             100% { transform: scale(1); }
         }
 
-        /* クールダウン状態 */
         #shootButton.cooldown {
             background: rgba(255, 255, 255, 0.1);
             border-color: rgba(255, 255, 255, 0.3);
@@ -95,7 +90,6 @@
             color: rgba(100, 100, 100, 0.5);
         }
 
-        /* クールダウンバー */
         #shootButton .cooldown-bar {
             position: absolute;
             bottom: 0;
@@ -110,7 +104,6 @@
             from { transform: scaleX(0); }
             to { transform: scaleX(1); }
         }
-
 
         .shoot-visual {
             position: absolute;
@@ -260,8 +253,8 @@
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
         }
 
-
-        #permissionRequest {
+        /* 新しいスタート画面のスタイル */
+        #startScreen {
             position: fixed;
             top: 0;
             left: 0;
@@ -273,26 +266,30 @@
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            font-size: 1.5rem;
+            font-size: 1.8rem;
             z-index: 200;
             text-align: center;
             font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            cursor: pointer; /* タップ可能であることを示す */
+            transition: opacity 0.5s ease-out;
         }
 
-        #permissionRequest button {
-            padding: 15px 30px;
+        #startScreen.hidden {
+            opacity: 0;
+            pointer-events: none; /* クリックを透過させる */
+        }
+
+        #startScreen p {
+            margin-bottom: 20px;
+            font-size: 2.5rem;
+            font-weight: 700;
+        }
+
+        #startScreen span {
             font-size: 1.2rem;
-            margin-top: 30px;
-            background: #007bff;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            transition: background 0.2s ease-in-out;
+            opacity: 0.8;
         }
-        #permissionRequest button:hover {
-            background: #0056b3;
-        }
+
     </style>
 </head>
 <body>
@@ -309,9 +306,9 @@
         <button id="restartButton">RESTART</button>
     </div>
 
-    <div id="permissionRequest" style="display: none;">
-        <p>ゲームを開始するために、<br>ジャイロセンサーの使用を許可してください。</p>
-        <button id="requestPermissionButton">許可する</button>
+    <div id="startScreen">
+        <p>TAP TO START</p>
+        <span>(ジャイロセンサーと音声を有効にします)</span>
     </div>
 
     <script>
@@ -324,8 +321,7 @@
         const gameOverScreen = document.getElementById("gameOverScreen");
         const finalScore = document.getElementById("finalScore");
         const restartButton = document.getElementById("restartButton");
-        const permissionRequest = document.getElementById("permissionRequest");
-        const requestPermissionButton = document.getElementById("requestPermissionButton");
+        const startScreen = document.getElementById("startScreen"); // 新しい要素
 
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
@@ -371,25 +367,34 @@
             gameLoop();
         }
 
-        function requestDeviceOrientationPermission() {
-            if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+        function requestDeviceOrientationPermissionAndStartGame() {
+            // AudioContextの初期化は、必ずユーザー操作のイベントリスナー内で行う
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+
+            // iOS 13+ Safari の場合
+            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
                 DeviceOrientationEvent.requestPermission()
                     .then(permissionState => {
                         if (permissionState === 'granted') {
                             window.addEventListener("deviceorientation", handleDeviceOrientation);
-                            permissionRequest.style.display = 'none';
-                            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                            startScreen.classList.add('hidden'); // スタート画面を隠す
                             initGame();
                         } else {
-                            alert('ジャイロセンサーの利用が拒否されました。ゲームをプレイできません。');
-                            permissionRequest.style.display = 'flex';
+                            alert('ジャイロセンサーの利用が拒否されました。ゲームをプレイできません。ブラウザの設定で許可が必要な場合があります。');
+                            // 拒否された場合、スタート画面はそのままにしておく
                         }
                     })
-                    .catch(console.error);
+                    .catch(error => {
+                        console.error("DeviceOrientationEvent.requestPermission error:", error);
+                        alert('ジャイロセンサーの許可リクエスト中にエラーが発生しました。お使いのデバイスが対応しているか確認してください。');
+                        // エラーの場合もスタート画面はそのまま
+                    });
             } else {
+                // requestPermission が存在しない (古いブラウザやAndroidなど) 場合
                 window.addEventListener("deviceorientation", handleDeviceOrientation);
-                permissionRequest.style.display = 'none';
-                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                startScreen.classList.add('hidden'); // スタート画面を隠す
                 initGame();
             }
         }
@@ -630,15 +635,14 @@
         let enemySpawnInterval;
 
         window.onload = () => {
-            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-                permissionRequest.style.display = 'flex';
-                requestPermissionButton.addEventListener('click', requestDeviceOrientationPermission);
-            } else {
-                permissionRequest.style.display = 'none';
-                audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                initGame();
-            }
+            // ページロード時はスタート画面を表示し、他の要素は非表示（または操作不可）に保つ
+            startScreen.classList.remove('hidden');
+            // 必要に応じてゲーム関連のUIを初期状態で非表示にするCSSを追加
+            // 例: shootButton.style.display = 'none'; など
         };
+
+        // スタート画面がクリックされたらゲーム開始処理を呼び出す
+        startScreen.addEventListener('click', requestDeviceOrientationPermissionAndStartGame);
 
         window.addEventListener('resize', () => {
             canvas.width = window.innerWidth;
