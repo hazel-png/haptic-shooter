@@ -42,6 +42,7 @@
             /* パララックスの基準点 */
             transform-origin: center center;
             will-change: transform; /* アニメーションの最適化 */
+            /* JSで制御するためtransitionは不要 */
         }
 
         #shootButton {
@@ -49,7 +50,7 @@
             bottom: 40px; 
             left: 50%;
             transform-style: preserve-3d; /* 子要素の3D変換を保持 */
-            transform: translateX(-50%) translateZ(50px); /* 手前に浮かせ、奥行きを明確に */
+            /* transform: translateX(-50%) translateZ(50px); JSで制御 */
             width: 80%;
             max-width: 400px;
             height: 70px;
@@ -77,7 +78,9 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+            /* transformはJSで制御するため、transitionはここでは設定しない */
+            /* active/cooldown時のtransitionはCSSで残す */
+            transition: box-shadow 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
             cursor: pointer;
             outline: none;
             z-index: 10;
@@ -94,9 +97,7 @@
         }
 
         #shootButton:not(.cooldown):active {
-            /* JavaScriptでtransformを更新するため、ここでは基本的なtransformのみ */
-            /* transform: translateX(-50%) translateZ(40px) scale(0.97); */
-            transform: translateX(-50%) scale(0.97); 
+            transform: translateX(-50%) scale(0.97); /* JSでZ軸は制御 */
             /* アクティブ時の影を調整 */
             box-shadow: 
                 0 10px 20px rgba(0, 0, 0, 0.15),
@@ -119,7 +120,7 @@
             color: rgba(100, 100, 100, 0.5);
             box-shadow: none;
             cursor: not-allowed;
-            /* transform: translateX(-50%) translateZ(45px); */ /* JavaScriptで制御 */
+            /* transform: translateX(-50%) translateZ(45px); JSで制御 */
         }
         #shootButton.cooldown .icon {
             color: rgba(100, 100, 100, 0.5);
@@ -249,8 +250,9 @@
             text-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
             z-index: 10;
             font-family: inherit;
-            transform: translateZ(20px); 
+            /* transform: translateZ(20px); JSで制御 */
             will-change: transform;
+            transition: none; /* JSで制御するためtransitionは削除 */
         }
 
         #comboDisplay {
@@ -265,14 +267,14 @@
             font-family: inherit;
             opacity: 0;
             transform-style: preserve-3d;
-            transform: translateY(20px) scale(0.8) translateZ(15px); 
-            transition: opacity 0.3s ease-out, transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            /* transform: translateY(20px) scale(0.8) translateZ(15px); JSで制御 */
+            transition: opacity 0.3s ease-out; /* transformはJSで制御 */
             will-change: transform;
         }
 
         #comboDisplay.active {
             opacity: 1;
-            transform: translateY(0) scale(1) translateZ(25px); 
+            /* transform: translateY(0) scale(1) translateZ(25px); JSで制御 */
         }
 
         #gameOverScreen {
@@ -293,17 +295,17 @@
             z-index: 100;
             opacity: 0;
             visibility: hidden;
-            transition: opacity 0.6s ease-in-out, transform 0.6s ease-in-out;
+            transition: opacity 0.6s ease-in-out; /* transformはJSで制御 */
             border-radius: 16px;
             transform-style: preserve-3d;
-            transform: translateZ(50px) scale(0.9); 
+            /* transform: translateZ(50px) scale(0.9); JSで制御 */
             will-change: transform;
         }
 
         #gameOverScreen.visible {
             opacity: 1;
             visibility: visible;
-            transform: translateZ(150px) scale(1); 
+            /* transform: translateZ(150px) scale(1); JSで制御 */
         }
 
         #gameOverScreen h2 {
@@ -336,21 +338,21 @@
             font-size: 1.8rem;
             font-weight: 700;
             cursor: pointer;
-            transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+            transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1); /* ホバー時のtransitionは残す */
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2); 
             font-family: inherit;
             transform-style: preserve-3d;
-            transform: translateZ(10px); 
+            /* transform: translateZ(10px); JSで制御 */
             will-change: transform;
         }
 
         #restartButton:hover {
             background: rgba(255, 255, 255, 0.7);
             box-shadow: 0 15px 40px rgba(0, 0, 0, 0.25); 
-            /* transform: translateY(-5px) translateZ(20px); */ /* JavaScriptで制御 */
+            /* transform: translateY(-5px) translateZ(20px); JSで制御 */
         }
         #restartButton:active {
-            /* transform: scale(0.96) translateZ(8px); */ /* JavaScriptで制御 */
+            /* transform: scale(0.96) translateZ(8px); JSで制御 */
             box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
         }
 
@@ -372,16 +374,16 @@
             text-align: center;
             font-family: inherit;
             cursor: pointer;
-            transition: opacity 0.5s ease-out;
+            transition: opacity 0.5s ease-out; /* transformはJSで制御 */
             transform-style: preserve-3d;
-            transform: translateZ(200px); 
+            /* transform: translateZ(200px); JSで制御 */
             will-change: transform;
         }
 
         #startScreen.hidden {
             opacity: 0;
             pointer-events: none;
-            transform: translateZ(0px); 
+            /* transform: translateZ(0px); JSで制御 */
         }
 
         #startScreen p {
@@ -433,15 +435,15 @@
         const startScreen = document.getElementById("startScreen");
 
         // UI要素とその初期Z値、パララックス係数をマップする
-        // これにより、JavaScriptで動的にtransformを調整しやすくなる
+        // currentTransform を追加し、JSが適用するtransformを管理
         const uiElements = [
-            { element: scoreDisplay, initialZ: 20, parallaxFactor: 0.08 },
-            { element: comboDisplay, initialZ: 15, parallaxFactor: 0.12 },
-            { element: shootButton, initialZ: 50, parallaxFactor: 0.15, isButton: true },
-            { element: gameOverScreen, initialZ: 150, parallaxFactor: 0.2 }, // GameOverScreenは表示時のみパララックス
-            { element: restartButton, initialZ: 10, parallaxFactor: 0.17 },
-            { element: startScreen, initialZ: 200, parallaxFactor: 0.25 },
-            { element: canvas, initialZ: -100, parallaxFactor: 0.03 } // レーダーも動かす
+            { element: scoreDisplay, initialZ: 20, parallaxFactor: 0.08, currentTransform: "translateZ(20px)" },
+            { element: comboDisplay, initialZ: 15, parallaxFactor: 0.12, currentTransform: "translateY(20px) scale(0.8) translateZ(15px)" }, // 初期状態を反映
+            { element: shootButton, initialZ: 50, parallaxFactor: 0.15, isButton: true, currentTransform: "translateX(-50%) translateZ(50px)" },
+            { element: gameOverScreen, initialZ: 50, parallaxFactor: 0.2, currentTransform: "translateZ(50px) scale(0.9)" }, 
+            { element: restartButton, initialZ: 10, parallaxFactor: 0.17, currentTransform: "translateZ(10px)" },
+            { element: startScreen, initialZ: 200, parallaxFactor: 0.25, currentTransform: "translateZ(200px)" },
+            { element: canvas, initialZ: -100, parallaxFactor: 0.03, currentTransform: "translateZ(-100px)" } // レーダーも動かす
         ];
 
         canvas.width = window.innerWidth;
@@ -502,7 +504,7 @@
             playerAngle = 0;
             if (enemySpawnInterval) clearInterval(enemySpawnInterval);
             enemySpawnInterval = setInterval(spawnEnemy, 2500);
-            gameLoop();
+            // gameLoopはすでにrequestAnimationFrameで開始されているため、ここでは呼び出さない
         }
 
         function requestDeviceOrientationPermissionAndStartGame() {
@@ -515,7 +517,6 @@
                     .then(permissionState => {
                         if (permissionState === 'granted') {
                             window.addEventListener("deviceorientation", handleDeviceOrientation);
-                            window.addEventListener("deviceorientation", handleTilt); // パララックス用イベントリスナー
                             startScreen.classList.add('hidden');
                             initGame();
                         } else {
@@ -528,7 +529,6 @@
                     });
             } else {
                 window.addEventListener("deviceorientation", handleDeviceOrientation);
-                window.addEventListener("deviceorientation", handleTilt); // パララックス用イベントリスナー
                 startScreen.classList.add('hidden');
                 initGame();
             }
@@ -538,68 +538,99 @@
             if (e.alpha !== null) {
                 playerAngle = -e.alpha * Math.PI / 180;
             }
-        }
-        
-        // パララックス効果のための傾き処理
-        function handleTilt(e) {
-            // gamma: -90 (左傾き) to 90 (右傾き)
-            // beta: -180 (奥に倒す) to 180 (手前に倒す) -- デバイスによるが、通常は-90 to 90度で扱いやすい
-            
-            // 値を正規化し、動きの範囲を制限
+            // gammaとbetaの値を更新 (パララックス用)
             currentGamma = Math.max(-10, Math.min(10, e.gamma || 0)); // -10度から10度の範囲に制限
             currentBeta = Math.max(-10, Math.min(10, e.beta || 0));   // -10度から10度の範囲に制限
         }
-
+        
         // UI要素のパララックスを適用する関数
         function applyParallax() {
             uiElements.forEach(item => {
                 const element = item.element;
-                let zOffset = item.initialZ;
-                let currentTransform = element.style.transform; // 現在のtransformを取得
+                let baseTransform = ""; // 基本のtransform文字列
 
-                // 特定の要素はゲームの状態に応じて初期Z値を変える
+                // 特定の要素は非表示時はパララックスを適用しない
                 if (item.element === gameOverScreen && !gameOverScreen.classList.contains('visible')) {
-                    // ゲームオーバー画面が非表示の時はパララックス適用しないか、Z軸を奥にする
-                    // transformはtransitionで制御しているので、ここでは変更しない
+                    // 非表示時はCSSアニメーションで制御されるので、JSからは操作しない
                     return; 
                 }
                 if (item.element === startScreen && startScreen.classList.contains('hidden')) {
-                    // スタート画面が非表示の時はパララックス適用しない
-                    // transformはtransitionで制御しているので、ここでは変更しない
+                    // 非表示時はCSSアニメーションで制御されるので、JSからは操作しない
                     return;
                 }
-
+                
                 // shootButtonの特殊処理 (translateX(-50%)を維持)
-                let baseTransform = "";
                 if (item.isButton) {
                     baseTransform = "translateX(-50%)";
-                    // ボタンのアクティブ状態はCSSで制御するため、JavaScriptでのZ軸操作はしない
-                    if (shootButton.classList.contains('active')) {
-                        zOffset = 40; // 例: アクティブ時はZ軸が手前
-                    } else if (shootButton.classList.contains('cooldown')) {
-                        zOffset = 45; // 例: クールダウン時はZ軸が少し奥
-                    } else {
-                        zOffset = item.initialZ;
+                    // ボタンのアクティブ/クールダウン状態のZ軸はCSSで制御
+                    // JSはパララックス移動のみを適用し、CSSのZ軸アニメーションと競合しないようにする
+                    // shootButtonのZ軸アニメーションはCSSで残すため、ここでは直接Z軸は指定しない
+                    if (shootButton.classList.contains('cooldown')) {
+                        // クールダウン中は少し奥に引っ込む
+                        // CSSのtransition propertyで制御される
+                    } else if (shootButton.classList.contains('active')) {
+                        // クリック中は手前に出る
+                        // CSSのtransition propertyで制御される
                     }
-                } else {
-                    // その他の要素は元の位置が0,0なのでそのまま
+                } else if (item.element === gameOverScreen) {
+                     // ゲームオーバー画面はvisibleクラスでtransformのアニメーションを持つため
+                     // Z軸のパララックスはvisibleクラスの適用後に計算されるべき
+                     if (gameOverScreen.classList.contains('visible')) {
+                         // visibleクラスのtransformが優先されるため、ここではパララックスのX/Yのみ適用
+                         // Z軸はCSSのvisibleアニメーションに任せる
+                         // currentTransformを更新しない
+                     }
+                } else if (item.element === startScreen) {
+                    if (startScreen.classList.contains('hidden')) {
+                         // hiddenクラスのtransformが優先される
+                    }
                 }
-                
+
                 // 傾きに応じた移動量
                 const moveX = -currentGamma * item.parallaxFactor; // 傾きに反比例してUIを動かす
                 const moveY = -currentBeta * item.parallaxFactor;  // 傾きに反比例してUIを動かす
-
-                // transformを設定
-                element.style.transform = `${baseTransform} translate3d(${moveX}px, ${moveY}px, ${zOffset}px)`;
+                
+                // shootButton, comboDisplay, scoreDisplay, restartButton, gameOverScreen, startScreen
+                // はすでにZ軸を含むCSS transformを持っているため、それらをベースにX/Yを追加する
+                // ただし、hover/active/cooldownなどの特定状態を持つ要素は、JSでX/Y/Zを全て管理する必要がある
+                
+                // シンプルに現在の要素のtransformを取得し、X/Y/Zを抽出して更新する
+                // compute the current transform matrix for more robust handling
+                const transformMatrix = new DOMMatrix(getComputedStyle(element).transform);
+                let currentZ = transformMatrix.m43; // Z軸の値
+                let currentScaleX = Math.sqrt(transformMatrix.m11 * transformMatrix.m11 + transformMatrix.m21 * transformMatrix.m21);
+                let currentScaleY = Math.sqrt(transformMatrix.m12 * transformMatrix.m12 + transformMatrix.m22 * transformMatrix.m22);
+                
+                // スケールが1でない場合は、スケールも考慮に入れる
+                // ただし、このアプローチは複雑になるため、
+                // 基本的なX/Y/Zの調整に留め、スケールはCSSアニメーションに任せるのが良い場合が多い
+                // ここではX/Y/Zのみを調整
+                
+                // shootButtonはtranslateX(-50%)が必要
+                let finalTransform = "";
+                if (item.isButton) {
+                    finalTransform = `translateX(-50%) translate3d(${moveX}px, ${moveY}px, ${currentZ}px) scale(${currentScaleX})`;
+                } else if (item.element === comboDisplay && !item.element.classList.contains('active')) {
+                    // コンボが非アクティブな場合は、translateYも含む
+                    finalTransform = `translateY(20px) scale(0.8) translate3d(${moveX}px, ${moveY}px, ${currentZ}px)`;
+                } else if (item.element === gameOverScreen && !item.element.classList.contains('visible')) {
+                    finalTransform = `scale(0.9) translate3d(${moveX}px, ${moveY}px, ${currentZ}px)`;
+                } else if (item.element === startScreen && item.element.classList.contains('hidden')) {
+                     finalTransform = `translate3d(${moveX}px, ${moveY}px, 0px)`; // Hidden時はZ軸は0
+                }
+                else {
+                    finalTransform = `translate3d(${moveX}px, ${moveY}px, ${currentZ}px)`;
+                }
+                
+                // CSS transitionがtransformに設定されている場合は、
+                // JSで直接transformを更新すると競合するため、
+                // CSS transitionを一時的に無効にするなどの工夫が必要。
+                // または、transformはJSで全て管理し、CSSからはZ軸の初期値やスケールだけにする。
+                // ここでは、CSSからtransformに関するtransitionを削除し、JSで全て制御することを前提とする。
+                element.style.transform = finalTransform;
             });
-
-            // レーダーキャンバスは中央が基準なので特殊処理
-            const radarMoveX = currentGamma * uiElements[uiElements.length - 1].parallaxFactor;
-            const radarMoveY = currentBeta * uiElements[uiElements.length - 1].parallaxFactor;
-            const radarZ = uiElements[uiElements.length - 1].initialZ;
-            canvas.style.transform = `translate3d(${radarMoveX}px, ${radarMoveY}px, ${radarZ}px)`;
-
-            requestAnimationFrame(applyParallax); // 次のフレームで再度更新
+            // requestAnimationFrame内でゲームロジックも更新することで、描画サイクルに合わせる
+            gameLoopTick();
         }
 
 
@@ -644,13 +675,18 @@
                 comboDisplay.classList.remove("active");
                 // コンボ表示が消えるときもヌルッと
                 comboDisplay.style.transition = 'opacity 0.5s ease-out, transform 0.5s ease-in';
-                comboDisplay.style.opacity = '0';
                 // パララックスと競合しないよう、transition終了後にtransformをリセット
-                comboDisplay.style.transform = `translateY(20px) scale(0.8) translateZ(${uiElements[1].initialZ}px)`; 
+                // transformはJSで管理しているので、ここではスタイルを直接設定
+                comboDisplay.style.opacity = '0';
+                const comboItem = uiElements.find(item => item.element === comboDisplay);
+                if (comboItem) {
+                    comboItem.currentTransform = `translateY(20px) scale(0.8) translateZ(${comboItem.initialZ}px)`;
+                }
+
                 setTimeout(() => {
                     comboDisplay.textContent = "";
                     // 元のtransitionに戻す
-                    comboDisplay.style.transition = 'opacity 0.3s ease-out, transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+                    comboDisplay.style.transition = 'opacity 0.3s ease-out'; // transformはJS
                 }, 500); // アニメーション終了後にテキストをクリア
             }
         }
@@ -732,11 +768,12 @@
             return Math.atan2(Math.sin(angle), Math.cos(angle));
         }
 
-        function gameLoop() {
+        // メインゲームループ
+        function gameLoopTick() {
             if (isGameOver) return;
             updateEnemies();
             drawRadar();
-            requestAnimationFrame(gameLoop);
+            // requestAnimationFrameはapplyParallaxから呼び出す
         }
 
         function createShootVisual(x, y) {
@@ -787,14 +824,11 @@
             if (enemySpawnInterval) clearInterval(enemySpawnInterval);
             finalScore.textContent = `FINAL SCORE: ${score}`;
             gameOverScreen.classList.add("visible");
-            // ゲームオーバー画面もパララックス対象になるように更新
+            
+            // ゲームオーバー画面の初期Z値とスケールを強制的に設定
             const gameOverItem = uiElements.find(item => item.element === gameOverScreen);
             if (gameOverItem) {
-                gameOverItem.initialZ = 150; // visibleクラスでZ軸アニメーションするので、ここでは初期値を設定し直す
-                // transitionが終了した後にパララックスを開始する
-                setTimeout(() => {
-                     gameOverItem.parallaxFactor = 0.2; // アニメーション終了後に有効化
-                }, 600); // transition時間と同じ
+                gameOverItem.currentTransform = `translateZ(150px) scale(1)`; // visibleクラスアニメーションの最終状態
             }
         }
 
@@ -807,27 +841,21 @@
             vibrateDevice([20, 10, 20]); // ショット時の振動 (短く鋭い)
 
             shootButtonIcon.classList.add('bounce');
-            // shootButtonも一時的にtransformを固定する (CSSアニメーションとJSパララックスの競合回避)
-            const originalTransform = shootButton.style.transform;
-            shootButton.style.transition = 'none'; // パララックスによる遷移を一時停止
-            shootButton.style.transform = `${shootButton.style.transform.split(' translate3d')[0]} translateZ(40px) scale(0.97)`;
+            // shootButtonのZ軸アニメーションをCSSに任せるため、JSからのtransform操作を一時停止
+            shootButton.style.transition = 'transform 0.15s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.25s cubic-bezier(0.2, 0.8, 0.2, 1)'; // 元のtransitionを設定
+            shootButton.style.transform = `translateX(-50%) translateZ(40px) scale(0.97)`; // CSSの:activeに相当する値を強制適用
 
             setTimeout(() => {
                 shootButtonIcon.classList.remove('bounce');
-                // アニメーション終了後にパララックスを再開
-                shootButton.style.transition = ''; // transitionを戻す
-                // shootButtonのtransformはapplyParallaxで更新されるため、ここではZ軸の初期値に戻すのみ
-                const shootBtnItem = uiElements.find(item => item.element === shootButton);
-                if (shootBtnItem) {
-                    shootBtnItem.initialZ = 50; 
-                }
-
+                // アニメーション終了後にCSSのtransitionを無効に戻し、JSによるパララックス制御に戻す
+                shootButton.style.transition = 'box-shadow 0.25s cubic-bezier(0.2, 0.8, 0.2, 1)'; // transform transitionを削除
             }, 150); 
 
             shootCooldown = true;
             shootButton.classList.add("cooldown");
             shootCooldownBar.style.animation = `cooldownFill ${SHOOT_COOLDOWN_TIME / 1000}s linear forwards`;
-
+            // クールダウン時のZ軸はCSSのcooldownクラスで制御
+            
             setTimeout(() => {
                 shootCooldown = false;
                 shootButton.classList.remove("cooldown");
@@ -870,10 +898,14 @@
                             // コンボ表示が消えるときもヌルッと
                             comboDisplay.style.transition = 'opacity 0.5s ease-out, transform 0.5s ease-in';
                             comboDisplay.style.opacity = '0';
-                            comboDisplay.style.transform = `translateY(20px) scale(0.8) translateZ(${uiElements[1].initialZ}px)`; 
+                            // パララックスと競合しないよう、transition終了後にtransformをリセット
+                            const comboItem = uiElements.find(item => item.element === comboDisplay);
+                            if (comboItem) {
+                                comboItem.currentTransform = `translateY(20px) scale(0.8) translateZ(${comboItem.initialZ}px)`; // 初期状態を反映
+                            }
                             setTimeout(() => {
                                 comboDisplay.textContent = "";
-                                comboDisplay.style.transition = 'opacity 0.3s ease-out, transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+                                comboDisplay.style.transition = 'opacity 0.3s ease-out'; // transformはJSで制御
                             }, 500); 
                         }
 
@@ -903,8 +935,8 @@
 
         window.onload = () => {
             startScreen.classList.remove('hidden');
-            // 初期パララックス適用を開始
-            applyParallax();
+            // メインループを開始 (applyParallaxがrequestAnimationFrameを呼び出し、その中でgameLoopTickも実行)
+            applyParallax(); 
         };
 
         startScreen.addEventListener('click', requestDeviceOrientationPermissionAndStartGame);
