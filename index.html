@@ -6,11 +6,16 @@
     <title>Haptic Dot Shooter</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
+        :root {
+            /* 傾きに応じたUIの動きを制御するCSS変数 */
+            --tilt-x: 0px; /* 左右の傾きに応じたX方向の移動量 */
+            --tilt-y: 0px; /* 前後の傾きに応じたY方向の移動量 */
+        }
+
         body {
             margin: 0;
             background: linear-gradient(135deg, #f0f2f5, #e0e5ec);
             overflow: hidden;
-            /* タイポグラフィガイドラインに準拠 */
             font-family: -apple-system, BlinkMacSystemFont, "SF Pro", 'Inter', sans-serif;
             color: #333;
             display: flex;
@@ -23,8 +28,16 @@
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
             
-            /* 3D表現の基盤: perspective をbodyに設定 */
+            /* 3D表現の基盤: perspective をbodyまたは親要素に設定 */
             perspective: 1000px; /* 奥行きの知覚に影響 */
+            transform-style: preserve-3d; /* 子要素の3D変換を保持 */
+            transition: transform 0.1s ease-out; /* 全体の傾き変化を滑らかに */
+        }
+
+        /* 全体の傾きに合わせてUI要素を動かすためのクラス */
+        .parallax-element {
+            position: absolute; /* absoluteまたはfixedで配置 */
+            transition: transform 0.1s ease-out; /* 個別の動きを滑らかに */
         }
 
         #radarCanvas {
@@ -32,17 +45,12 @@
             height: 100vh;
             touch-action: none;
             display: block;
-            position: absolute;
             top: 0;
             left: 0;
             z-index: 1;
             background: radial-gradient(circle at center, rgba(100, 100, 100, 0.03) 0%, rgba(0, 0, 0, 0) 70%);
-            /* レーダー自体も奥に配置 */
-            transform: translateZ(-100px); 
-            /* パララックスの基準点 */
-            transform-origin: center center;
-            will-change: transform; /* アニメーションの最適化 */
-            /* JSで制御するためtransitionは不要 */
+            /* レーダー自体も少し奥に配置し、傾きに反応させる */
+            transform: translateZ(-100px) translateX(calc(var(--tilt-x) * -0.5px)) translateY(calc(var(--tilt-y) * -0.5px)); 
         }
 
         #shootButton {
@@ -50,7 +58,8 @@
             bottom: 40px; 
             left: 50%;
             transform-style: preserve-3d; /* 子要素の3D変換を保持 */
-            /* transform: translateX(-50%) translateZ(50px); JSで制御 */
+            /* 手前に浮かせ、奥行きを明確にし、傾きに反応させる */
+	    transform: translateX(calc(-50% + var(--tilt-x) * 1.5px)) translateZ(50px) translateY(calc(var(--tilt-y) * 1.5px));
             width: 80%;
             max-width: 400px;
             height: 70px;
@@ -78,14 +87,11 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            /* transformはJSで制御するため、transitionはここでは設定しない */
-            /* active/cooldown時のtransitionはCSSで残す */
-            transition: box-shadow 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+            transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.1s ease-out; /* transformの遷移も追加 */
             cursor: pointer;
             outline: none;
             z-index: 10;
             overflow: hidden;
-            will-change: transform; /* アニメーションの最適化 */
         }
 
         #shootButton .icon {
@@ -97,7 +103,8 @@
         }
 
         #shootButton:not(.cooldown):active {
-            transform: translateX(-50%) scale(0.97); /* JSでZ軸は制御 */
+            /* 押し込み時にZ軸も手前に、傾きも考慮 */
+ 	   transform: translateX(calc(-50% + var(--tilt-x) * 1.5px)) translateZ(40px) scale(0.97) translateY(calc(var(--tilt-y) * 1.5px));
             /* アクティブ時の影を調整 */
             box-shadow: 
                 0 10px 20px rgba(0, 0, 0, 0.15),
@@ -120,7 +127,8 @@
             color: rgba(100, 100, 100, 0.5);
             box-shadow: none;
             cursor: not-allowed;
-            /* transform: translateX(-50%) translateZ(45px); JSで制御 */
+            /* クールダウン時も少し奥に、傾きも考慮 */
+	    transform: translateX(calc(-50% + var(--tilt-x) * 1.5px)) translateZ(45px) translateY(calc(var(--tilt-y) * 1.5px));
         }
         #shootButton.cooldown .icon {
             color: rgba(100, 100, 100, 0.5);
@@ -146,21 +154,22 @@
             position: absolute;
             background: rgba(0, 122, 255, 0.5);
             border-radius: 50%;
-            transform: translate(-50%, -50%) scale(0) translateZ(20px); 
+            /* より手前から発射されるように、傾きも考慮 */
+            transform: translate(-50%, -50%) scale(0) translateZ(20px) translateX(calc(var(--tilt-x) * 0.5px)) translateY(calc(var(--tilt-y) * 0.5px)); 
             opacity: 0;
             animation: shootVisual 0.3s ease-out forwards;
             pointer-events: none;
             z-index: 5;
-            will-change: transform;
         }
 
         @keyframes shootVisual {
             0% {
-                transform: translate(-50%, -50%) scale(0.3) translateZ(20px);
+                transform: translate(-50%, -50%) scale(0.3) translateZ(20px) translateX(calc(var(--tilt-x) * 0.5px)) translateY(calc(var(--tilt-y) * 0.5px));
                 opacity: 1;
             }
             100% {
-                transform: translate(-50%, -50%) scale(8) translateZ(-50px);
+                /* 画面の奥に広がるように、傾きも考慮 */
+                transform: translate(-50%, -50%) scale(8) translateZ(-50px) translateX(calc(var(--tilt-x) * -0.5px)) translateY(calc(var(--tilt-y) * -0.5px)); 
                 opacity: 0;
             }
         }
@@ -173,17 +182,18 @@
             pointer-events: none;
             z-index: 6;
             transform-origin: center center;
-            transform: translateZ(10px); 
-            will-change: transform;
+            /* 敵のヒットも手前で、傾きも考慮 */
+            transform: translateZ(10px) translateX(calc(var(--tilt-x) * 0.2px)) translateY(calc(var(--tilt-y) * 0.2px)); 
         }
 
         @keyframes hitEffect {
             0% {
-                transform: scale(0) translateZ(10px);
+                transform: scale(0) translateZ(10px) translateX(calc(var(--tilt-x) * 0.2px)) translateY(calc(var(--tilt-y) * 0.2px));
                 opacity: 1;
             }
             100% {
-                transform: scale(3.5) translateZ(-20px);
+                /* 爆発が奥に広がる、傾きも考慮 */
+                transform: scale(3.5) translateZ(-20px) translateX(calc(var(--tilt-x) * -0.2px)) translateY(calc(var(--tilt-y) * -0.2px)); 
                 opacity: 0;
             }
         }
@@ -197,16 +207,18 @@
             pointer-events: none;
             z-index: 4; 
             transform-style: preserve-3d;
-            will-change: transform;
+            /* 敵と同じZ軸から、傾きも考慮 */
+            transform: translateZ(0) translateX(calc(var(--tilt-x) * 0.1px)) translateY(calc(var(--tilt-y) * 0.1px)); 
         }
 
         @keyframes particleFade {
             0% {
-                transform: scale(0.2) translateZ(0); 
+                transform: scale(0.2) translateZ(0) translateX(calc(var(--tilt-x) * 0.1px)) translateY(calc(var(--tilt-y) * 0.1px)); 
                 opacity: 0.9;
             }
             100% {
-                transform: scale(1.8) translateZ(20px); 
+                /* 手前に散る、傾きも考慮 */
+                transform: scale(1.8) translateZ(20px) translateX(calc(var(--tilt-x) * 0.5px)) translateY(calc(var(--tilt-y) * 0.5px)); 
                 opacity: 0;
             }
         }
@@ -222,20 +234,21 @@
             pointer-events: none;
             z-index: 7;
             text-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
-            transform-style: preserve-3d;
-            will-change: transform;
+            transform-style: preserve-3d; /* 3D空間で動かす */
+            /* 撃破時と同じZ軸から、傾きも考慮 */
+            transform: translateZ(10px) translateX(calc(var(--tilt-x) * 0.3px)) translateY(calc(var(--tilt-y) * 0.3px)); 
         }
 
         @keyframes scoreFadeOut {
             0% {
-                transform: translateY(0) scale(1) translateZ(10px); 
+                transform: translateY(0) scale(1) translateZ(10px) translateX(calc(var(--tilt-x) * 0.3px)) translateY(calc(var(--tilt-y) * 0.3px)); 
                 opacity: 1;
             }
             20% {
-                transform: translateY(-15px) scale(1.1) translateZ(20px); 
+                transform: translateY(-15px) scale(1.1) translateZ(20px) translateX(calc(var(--tilt-x) * 0.5px)) translateY(calc(var(--tilt-y) * 0.5px)); 
             }
             100% {
-                transform: translateY(-50px) scale(0.7) translateZ(30px); 
+                transform: translateY(-50px) scale(0.7) translateZ(30px) translateX(calc(var(--tilt-x) * 0.8px)) translateY(calc(var(--tilt-y) * 0.8px)); 
                 opacity: 0;
             }
         }
@@ -250,9 +263,9 @@
             text-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
             z-index: 10;
             font-family: inherit;
-            /* transform: translateZ(20px); JSで制御 */
-            will-change: transform;
-            transition: none; /* JSで制御するためtransitionは削除 */
+            /* スコアも手前に浮かす、傾きに反応させる */
+            transform: translateZ(20px) translateX(calc(var(--tilt-x) * 0.8px)) translateY(calc(var(--tilt-y) * 0.8px)); 
+            transition: transform 0.1s ease-out; /* 個別の動きを滑らかに */
         }
 
         #comboDisplay {
@@ -267,14 +280,15 @@
             font-family: inherit;
             opacity: 0;
             transform-style: preserve-3d;
-            /* transform: translateY(20px) scale(0.8) translateZ(15px); JSで制御 */
-            transition: opacity 0.3s ease-out; /* transformはJSで制御 */
-            will-change: transform;
+            /* 最初は少し下から小さく、手前に、傾きも考慮 */
+            transform: translateY(20px) scale(0.8) translateZ(15px) translateX(calc(var(--tilt-x) * 0.6px)) translateY(calc(var(--tilt-y) * 0.6px)); 
+            transition: opacity 0.3s ease-out, transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
 
         #comboDisplay.active {
             opacity: 1;
-            /* transform: translateY(0) scale(1) translateZ(25px); JSで制御 */
+            /* アクティブ時はより手前に浮き上がる、傾きも考慮 */
+            transform: translateY(0) scale(1) translateZ(25px) translateX(calc(var(--tilt-x) * 1px)) translateY(calc(var(--tilt-y) * 1px)); 
         }
 
         #gameOverScreen {
@@ -283,8 +297,8 @@
             left: 0;
             width: 100vw;
             height: 100vh;
-            background: rgba(255, 255, 255, 0.7); 
-            backdrop-filter: blur(35px) saturate(1.3); 
+            background: rgba(255, 255, 255, 0.7); /* 透明度をさらに下げる */
+            backdrop-filter: blur(35px) saturate(1.3); /* ぼかしと彩度をさらに強化 */
             -webkit-backdrop-filter: blur(35px) saturate(1.3);
             display: flex;
             flex-direction: column;
@@ -295,26 +309,29 @@
             z-index: 100;
             opacity: 0;
             visibility: hidden;
-            transition: opacity 0.6s ease-in-out; /* transformはJSで制御 */
+            transition: opacity 0.6s ease-in-out, transform 0.6s ease-in-out;
             border-radius: 16px;
             transform-style: preserve-3d;
-            /* transform: translateZ(50px) scale(0.9); JSで制御 */
-            will-change: transform;
+            /* 最初は少し奥から小さく、傾きも考慮 */
+            transform: translateZ(50px) scale(0.9) translateX(calc(var(--tilt-x) * 0.2px)) translateY(calc(var(--tilt-y) * 0.2px)); 
         }
 
         #gameOverScreen.visible {
             opacity: 1;
             visibility: visible;
-            /* transform: translateZ(150px) scale(1); JSで制御 */
+            /* 目の前に大きく浮かび上がる、傾きも考慮 */
+            transform: translateZ(150px) scale(1) translateX(calc(var(--tilt-x) * 0.5px)) translateY(calc(var(--tilt-y) * 0.5px)); 
         }
 
         #gameOverScreen h2 {
             font-size: 5rem;
             color: rgba(255, 45, 85, 0.9);
             margin-bottom: 25px;
-            text-shadow: 0 0 20px rgba(255, 45, 85, 0.5); 
+            text-shadow: 0 0 20px rgba(255, 45, 85, 0.5); /* 影をさらに強調 */
             font-weight: 700;
-            transform: translateZ(10px); 
+            /* タイトルも少し浮かす、傾きに反応させる */
+            transform: translateZ(10px) translateX(calc(var(--tilt-x) * 0.2px)) translateY(calc(var(--tilt-y) * 0.2px)); 
+            transition: transform 0.1s ease-out; /* 個別の動きを滑らかに */
         }
 
         #finalScore {
@@ -324,13 +341,15 @@
             text-shadow: 0 0 15px rgba(0, 123, 255, 0.4);
             font-family: inherit;
             font-weight: 600;
-            transform: translateZ(5px); 
+            /* スコアも少し浮かす、傾きに反応させる */
+            transform: translateZ(5px) translateX(calc(var(--tilt-x) * 0.1px)) translateY(calc(var(--tilt-y) * 0.1px)); 
+            transition: transform 0.1s ease-out; /* 個別の動きを滑らかに */
         }
 
         #restartButton {
             padding: 18px 45px;
-            background: rgba(255, 255, 255, 0.5); 
-            border: 1px solid rgba(255, 255, 255, 0.9); 
+            background: rgba(255, 255, 255, 0.5); /* 透明度を調整 */
+            border: 1px solid rgba(255, 255, 255, 0.9); /* ボーダーを強調 */
             border-bottom-color: rgba(255, 255, 255, 0.5);
             border-right-color: rgba(255, 255, 255, 0.5);
             border-radius: 12px;
@@ -338,21 +357,23 @@
             font-size: 1.8rem;
             font-weight: 700;
             cursor: pointer;
-            transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1); /* ホバー時のtransitionは残す */
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2); 
+            transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.1s ease-out; /* transformの遷移も追加 */
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2); /* 影を大きく */
             font-family: inherit;
             transform-style: preserve-3d;
-            /* transform: translateZ(10px); JSで制御 */
-            will-change: transform;
+            /* ボタンも少し浮かす、傾きに反応させる */
+            transform: translateZ(10px) translateX(calc(var(--tilt-x) * 0.3px)) translateY(calc(var(--tilt-y) * 0.3px)); 
         }
 
         #restartButton:hover {
             background: rgba(255, 255, 255, 0.7);
-            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.25); 
-            /* transform: translateY(-5px) translateZ(20px); JSで制御 */
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.25); /* ホバー時の影をさらに強調 */
+            /* より手前へ、より大きく、傾きも考慮 */
+            transform: translateY(-5px) translateZ(20px) translateX(calc(var(--tilt-x) * 0.4px)) translateY(calc(var(--tilt-y) * 0.4px)); 
         }
         #restartButton:active {
-            /* transform: scale(0.96) translateZ(8px); JSで制御 */
+            /* 押し込み時にZ軸も、傾きも考慮 */
+            transform: scale(0.96) translateZ(8px) translateX(calc(var(--tilt-x) * 0.2px)) translateY(calc(var(--tilt-y) * 0.2px)); 
             box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
         }
 
@@ -363,7 +384,7 @@
             left: 0;
             width: 100vw;
             height: 100vh;
-            background: rgba(0, 0, 0, 0.9); 
+            background: rgba(0, 0, 0, 0.9); /* 少し透明度を上げる */
             color: white;
             display: flex;
             flex-direction: column;
@@ -374,16 +395,17 @@
             text-align: center;
             font-family: inherit;
             cursor: pointer;
-            transition: opacity 0.5s ease-out; /* transformはJSで制御 */
+            transition: opacity 0.5s ease-out, transform 0.5s ease-out; /* transformの遷移も追加 */
             transform-style: preserve-3d;
-            /* transform: translateZ(200px); JSで制御 */
-            will-change: transform;
+            /* スタート画面を最も手前に、傾きに反応させる */
+            transform: translateZ(200px) translateX(calc(var(--tilt-x) * 0.5px)) translateY(calc(var(--tilt-y) * 0.5px)); 
         }
 
         #startScreen.hidden {
             opacity: 0;
             pointer-events: none;
-            /* transform: translateZ(0px); JSで制御 */
+            /* 奥に引っ込むように消える */
+            transform: translateZ(0px) translateX(calc(var(--tilt-x) * -0.5px)) translateY(calc(var(--tilt-y) * -0.5px)); 
         }
 
         #startScreen p {
@@ -391,14 +413,18 @@
             font-size: 2.8rem;
             font-weight: 700;
             color: #f0f0f0;
-            transform: translateZ(5px); 
+            /* テキストも浮かす、傾きに反応させる */
+            transform: translateZ(5px) translateX(calc(var(--tilt-x) * 0.1px)) translateY(calc(var(--tilt-y) * 0.1px)); 
+            transition: transform 0.1s ease-out; /* 個別の動きを滑らかに */
         }
 
         #startScreen span {
             font-size: 1.3rem;
             opacity: 0.85;
             color: #ccc;
-            transform: translateZ(2px); 
+            /* テキストも浮かす、傾きに反応させる */
+            transform: translateZ(2px) translateX(calc(var(--tilt-x) * 0.05px)) translateY(calc(var(--tilt-y) * 0.05px)); 
+            transition: transform 0.1s ease-out; /* 個別の動きを滑らかに */
         }
 
     </style>
@@ -410,7 +436,8 @@
         <div class="cooldown-bar"></div>
     </button>
     <div id="scoreDisplay">0</div>
-    <div id="comboDisplay"></div> <div id="gameOverScreen">
+    <div id="comboDisplay"></div> 
+    <div id="gameOverScreen">
         <h2>GAME OVER</h2>
         <div id="finalScore">FINAL SCORE: 0</div>
         <button id="restartButton">RESTART</button>
@@ -428,23 +455,11 @@
         const shootButtonIcon = shootButton.querySelector('.icon');
         const shootCooldownBar = shootButton.querySelector('.cooldown-bar');
         const scoreDisplay = document.getElementById("scoreDisplay");
-        const comboDisplay = document.getElementById("comboDisplay"); // コンボ表示用
+        const comboDisplay = document.getElementById("comboDisplay");
         const gameOverScreen = document.getElementById("gameOverScreen");
         const finalScore = document.getElementById("finalScore");
         const restartButton = document.getElementById("restartButton");
         const startScreen = document.getElementById("startScreen");
-
-        // UI要素とその初期Z値、パララックス係数をマップする
-        // currentTransform を追加し、JSが適用するtransformを管理
-        const uiElements = [
-            { element: scoreDisplay, initialZ: 20, parallaxFactor: 0.08, currentTransform: "translateZ(20px)" },
-            { element: comboDisplay, initialZ: 15, parallaxFactor: 0.12, currentTransform: "translateY(20px) scale(0.8) translateZ(15px)" }, // 初期状態を反映
-            { element: shootButton, initialZ: 50, parallaxFactor: 0.15, isButton: true, currentTransform: "translateX(-50%) translateZ(50px)" },
-            { element: gameOverScreen, initialZ: 50, parallaxFactor: 0.2, currentTransform: "translateZ(50px) scale(0.9)" }, 
-            { element: restartButton, initialZ: 10, parallaxFactor: 0.17, currentTransform: "translateZ(10px)" },
-            { element: startScreen, initialZ: 200, parallaxFactor: 0.25, currentTransform: "translateZ(200px)" },
-            { element: canvas, initialZ: -100, parallaxFactor: 0.03, currentTransform: "translateZ(-100px)" } // レーダーも動かす
-        ];
 
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
@@ -458,15 +473,12 @@
         let shootCooldown = false;
         const SHOOT_COOLDOWN_TIME = 500;
 
-        let comboCount = 0; // コンボ数
-        let lastKillTime = 0; // 最後に敵を倒した時間
-        const COMBO_RESET_TIME = 1500; // コンボがリセットされるまでの時間 (ms)
+        let comboCount = 0;
+        let lastKillTime = 0;
+        const COMBO_RESET_TIME = 1500;
 
         let audioContext;
-        let currentGamma = 0;
-        let currentBeta = 0;
 
-        // バイブレーション関数を抽象化
         function vibrateDevice(pattern) {
             if (navigator.vibrate) {
                 navigator.vibrate(pattern);
@@ -493,7 +505,7 @@
         function initGame() {
             enemies = [];
             score = 0;
-            comboCount = 0; // ゲーム開始時にコンボをリセット
+            comboCount = 0;
             lastKillTime = 0;
             isGameOver = false;
             shootCooldown = false;
@@ -504,7 +516,7 @@
             playerAngle = 0;
             if (enemySpawnInterval) clearInterval(enemySpawnInterval);
             enemySpawnInterval = setInterval(spawnEnemy, 2500);
-            // gameLoopはすでにrequestAnimationFrameで開始されているため、ここでは呼び出さない
+            gameLoop();
         }
 
         function requestDeviceOrientationPermissionAndStartGame() {
@@ -528,111 +540,35 @@
                         alert('ジャイロセンサーの許可リクエスト中にエラーが発生しました。お使いのデバイスが対応しているか確認してください。');
                     });
             } else {
+                // DeviceOrientationEvent.requestPermission がない環境 (iOS以外のブラウザなど)
                 window.addEventListener("deviceorientation", handleDeviceOrientation);
                 startScreen.classList.add('hidden');
                 initGame();
             }
         }
 
+        let currentTiltX = 0;
+        let currentTiltY = 0;
+        const TILT_SMOOTHING_FACTOR = 0.1; // 0から1の間。値が小さいほど滑らか
+
         function handleDeviceOrientation(e) {
-            if (e.alpha !== null) {
+            // gamma: Y軸周りの回転 (左右の傾き)
+            // beta: X軸周りの回転 (前後の傾き)
+            if (e.gamma !== null && e.beta !== null) {
+                // プレイヤーの角度はalphaを使用 (水平方向の回転)
                 playerAngle = -e.alpha * Math.PI / 180;
+
+                // UIのパララックス効果のためにgammaとbetaを使用
+                // 傾きをピクセル値に変換し、動きの強さを調整 (例: 0.5で半分の動き)
+                // スムージングを適用
+                currentTiltX += (e.gamma - currentTiltX) * TILT_SMOOTHING_FACTOR;
+                currentTiltY += (e.beta - currentTiltY) * TILT_SMOOTHING_FACTOR;
+
+                // CSS変数に設定
+                document.body.style.setProperty('--tilt-x', `${currentTiltX * 0.5}px`); // 左右の傾き
+                document.body.style.setProperty('--tilt-y', `${currentTiltY * 0.5}px`); // 前後の傾き
             }
-            // gammaとbetaの値を更新 (パララックス用)
-            currentGamma = Math.max(-10, Math.min(10, e.gamma || 0)); // -10度から10度の範囲に制限
-            currentBeta = Math.max(-10, Math.min(10, e.beta || 0));   // -10度から10度の範囲に制限
         }
-        
-        // UI要素のパララックスを適用する関数
-        function applyParallax() {
-            uiElements.forEach(item => {
-                const element = item.element;
-                let baseTransform = ""; // 基本のtransform文字列
-
-                // 特定の要素は非表示時はパララックスを適用しない
-                if (item.element === gameOverScreen && !gameOverScreen.classList.contains('visible')) {
-                    // 非表示時はCSSアニメーションで制御されるので、JSからは操作しない
-                    return; 
-                }
-                if (item.element === startScreen && startScreen.classList.contains('hidden')) {
-                    // 非表示時はCSSアニメーションで制御されるので、JSからは操作しない
-                    return;
-                }
-                
-                // shootButtonの特殊処理 (translateX(-50%)を維持)
-                if (item.isButton) {
-                    baseTransform = "translateX(-50%)";
-                    // ボタンのアクティブ/クールダウン状態のZ軸はCSSで制御
-                    // JSはパララックス移動のみを適用し、CSSのZ軸アニメーションと競合しないようにする
-                    // shootButtonのZ軸アニメーションはCSSで残すため、ここでは直接Z軸は指定しない
-                    if (shootButton.classList.contains('cooldown')) {
-                        // クールダウン中は少し奥に引っ込む
-                        // CSSのtransition propertyで制御される
-                    } else if (shootButton.classList.contains('active')) {
-                        // クリック中は手前に出る
-                        // CSSのtransition propertyで制御される
-                    }
-                } else if (item.element === gameOverScreen) {
-                     // ゲームオーバー画面はvisibleクラスでtransformのアニメーションを持つため
-                     // Z軸のパララックスはvisibleクラスの適用後に計算されるべき
-                     if (gameOverScreen.classList.contains('visible')) {
-                         // visibleクラスのtransformが優先されるため、ここではパララックスのX/Yのみ適用
-                         // Z軸はCSSのvisibleアニメーションに任せる
-                         // currentTransformを更新しない
-                     }
-                } else if (item.element === startScreen) {
-                    if (startScreen.classList.contains('hidden')) {
-                         // hiddenクラスのtransformが優先される
-                    }
-                }
-
-                // 傾きに応じた移動量
-                const moveX = -currentGamma * item.parallaxFactor; // 傾きに反比例してUIを動かす
-                const moveY = -currentBeta * item.parallaxFactor;  // 傾きに反比例してUIを動かす
-                
-                // shootButton, comboDisplay, scoreDisplay, restartButton, gameOverScreen, startScreen
-                // はすでにZ軸を含むCSS transformを持っているため、それらをベースにX/Yを追加する
-                // ただし、hover/active/cooldownなどの特定状態を持つ要素は、JSでX/Y/Zを全て管理する必要がある
-                
-                // シンプルに現在の要素のtransformを取得し、X/Y/Zを抽出して更新する
-                // compute the current transform matrix for more robust handling
-                const transformMatrix = new DOMMatrix(getComputedStyle(element).transform);
-                let currentZ = transformMatrix.m43; // Z軸の値
-                let currentScaleX = Math.sqrt(transformMatrix.m11 * transformMatrix.m11 + transformMatrix.m21 * transformMatrix.m21);
-                let currentScaleY = Math.sqrt(transformMatrix.m12 * transformMatrix.m12 + transformMatrix.m22 * transformMatrix.m22);
-                
-                // スケールが1でない場合は、スケールも考慮に入れる
-                // ただし、このアプローチは複雑になるため、
-                // 基本的なX/Y/Zの調整に留め、スケールはCSSアニメーションに任せるのが良い場合が多い
-                // ここではX/Y/Zのみを調整
-                
-                // shootButtonはtranslateX(-50%)が必要
-                let finalTransform = "";
-                if (item.isButton) {
-                    finalTransform = `translateX(-50%) translate3d(${moveX}px, ${moveY}px, ${currentZ}px) scale(${currentScaleX})`;
-                } else if (item.element === comboDisplay && !item.element.classList.contains('active')) {
-                    // コンボが非アクティブな場合は、translateYも含む
-                    finalTransform = `translateY(20px) scale(0.8) translate3d(${moveX}px, ${moveY}px, ${currentZ}px)`;
-                } else if (item.element === gameOverScreen && !item.element.classList.contains('visible')) {
-                    finalTransform = `scale(0.9) translate3d(${moveX}px, ${moveY}px, ${currentZ}px)`;
-                } else if (item.element === startScreen && item.element.classList.contains('hidden')) {
-                     finalTransform = `translate3d(${moveX}px, ${moveY}px, 0px)`; // Hidden時はZ軸は0
-                }
-                else {
-                    finalTransform = `translate3d(${moveX}px, ${moveY}px, ${currentZ}px)`;
-                }
-                
-                // CSS transitionがtransformに設定されている場合は、
-                // JSで直接transformを更新すると競合するため、
-                // CSS transitionを一時的に無効にするなどの工夫が必要。
-                // または、transformはJSで全て管理し、CSSからはZ軸の初期値やスケールだけにする。
-                // ここでは、CSSからtransformに関するtransitionを削除し、JSで全て制御することを前提とする。
-                element.style.transform = finalTransform;
-            });
-            // requestAnimationFrame内でゲームロジックも更新することで、描画サイクルに合わせる
-            gameLoopTick();
-        }
-
 
         function spawnEnemy() {
             if (isGameOver) return;
@@ -652,12 +588,10 @@
                 e.distance -= e.speed;
                 if (e.distance < 150 && !e.isApproaching) {
                     e.isApproaching = true;
-                    // 敵が接近した際のバイブレーションとサウンド (Nintendo的なポップな遊び心)
-                    vibrateDevice([30, 20, 30]); 
+                    vibrateDevice([30, 20, 30]);
                     generateSound(440, 0.05, 'sawtooth', 0.3);
                 }
-                // 敵が一定距離に近づいたらパーティクルを生成
-                if (e.distance < 100 && Math.random() < 0.1) { 
+                if (e.distance < 100 && Math.random() < 0.1) {
                     createEnemyParticle(cx + e.distance * Math.cos(e.angle), cy + e.distance * Math.sin(e.angle));
                 }
             });
@@ -669,35 +603,26 @@
                 return true;
             });
 
-            // コンボのリセット判定
             if (comboCount > 0 && performance.now() - lastKillTime > COMBO_RESET_TIME) {
                 comboCount = 0;
                 comboDisplay.classList.remove("active");
-                // コンボ表示が消えるときもヌルッと
                 comboDisplay.style.transition = 'opacity 0.5s ease-out, transform 0.5s ease-in';
-                // パララックスと競合しないよう、transition終了後にtransformをリセット
-                // transformはJSで管理しているので、ここではスタイルを直接設定
                 comboDisplay.style.opacity = '0';
-                const comboItem = uiElements.find(item => item.element === comboDisplay);
-                if (comboItem) {
-                    comboItem.currentTransform = `translateY(20px) scale(0.8) translateZ(${comboItem.initialZ}px)`;
-                }
-
+                comboDisplay.style.transform = 'translateY(20px) scale(0.8) translateZ(15px) translateX(calc(var(--tilt-x) * 0.6px)) translateY(calc(var(--tilt-y) * 0.6px))'; // 消える時もZ軸を考慮
                 setTimeout(() => {
                     comboDisplay.textContent = "";
-                    // 元のtransitionに戻す
-                    comboDisplay.style.transition = 'opacity 0.3s ease-out'; // transformはJS
-                }, 500); // アニメーション終了後にテキストをクリア
+                    comboDisplay.style.transition = 'opacity 0.3s ease-out, transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+                }, 500);
             }
         }
 
         function createEnemyParticle(x, y) {
             const particle = document.createElement("div");
             particle.className = "enemy-particle";
-            const size = Math.random() * 4 + 2; 
+            const size = Math.random() * 4 + 2;
             particle.style.width = particle.style.height = `${size}px`;
-            particle.style.left = `${x + (Math.random() - 0.5) * 20}px`; 
-            particle.style.top = `${y + (Math.random() - 0.5) * 20}px`; 
+            particle.style.left = `${x + (Math.random() - 0.5) * 20}px`;
+            particle.style.top = `${y + (Math.random() - 0.5) * 20}px`;
             document.body.appendChild(particle);
             setTimeout(() => particle.remove(), 800);
         }
@@ -705,7 +630,6 @@
         function drawRadar() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 背景のノイズドット (ミニマルな美しさ)
             for (let i = 0; i < 60; i++) {
                 ctx.fillStyle = `rgba(0, 0, 0, ${0.01 + Math.random() * 0.03})`;
                 ctx.beginPath();
@@ -713,7 +637,6 @@
                 ctx.fill();
             }
 
-            // レーダー円 (ミニマルな美しさ)
             ctx.strokeStyle = "rgba(100, 100, 100, 0.1)";
             ctx.lineWidth = 0.5;
             for (let i = 1; i <= 5; i++) {
@@ -722,42 +645,39 @@
                 ctx.stroke();
             }
 
-            // プレイヤー中心ドット
             ctx.fillStyle = "#333";
             ctx.beginPath();
             ctx.arc(cx, cy, 4, 0, 2 * Math.PI);
             ctx.fill();
 
-            // 照準線 (Apple Blue)
-            ctx.strokeStyle = "rgba(0, 122, 255, 0.8)"; 
+            ctx.strokeStyle = "rgba(0, 122, 255, 0.8)";
             ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.moveTo(cx, cy);
             ctx.lineTo(cx + 80 * Math.cos(playerAngle), cy + 80 * Math.sin(playerAngle));
             ctx.stroke();
 
-            // 敵の描画と色/サイズ変更 (Nintendo的なポップな遊び心)
             enemies.forEach(e => {
                 const ex = cx + e.distance * Math.cos(e.angle);
                 const ey = cy + e.distance * Math.sin(e.angle);
 
-                let enemyColor = "rgba(0, 122, 255, 0.8)"; // 初期色をApple Blueに
+                let enemyColor = "rgba(0, 122, 255, 0.8)";
                 let enemySize = 5;
                 let doBlink = false;
 
-                if (e.distance < 70) { 
-                    enemyColor = "rgba(255, 45, 85, 0.9)"; // Nintendo Red (鮮やかな赤)
-                    enemySize = 8 + (70 - e.distance) / 7; 
-                    doBlink = (Math.floor(Date.now() / 100) % 2 === 0); // 点滅速度を速く
-                } else if (e.distance < 150) { 
-                    enemyColor = "rgba(255, 153, 0, 0.9)"; // オレンジ (Googleカラーのイメージ)
+                if (e.distance < 70) {
+                    enemyColor = "rgba(255, 45, 85, 0.9)";
+                    enemySize = 8 + (70 - e.distance) / 7;
+                    doBlink = (Math.floor(Date.now() / 100) % 2 === 0);
+                } else if (e.distance < 150) {
+                    enemyColor = "rgba(255, 153, 0, 0.9)";
                     enemySize = 6 + (150 - e.distance) / 20;
-                } else { 
-                    enemyColor = "rgba(0, 122, 255, 0.8)"; // Apple Blue
+                } else {
+                    enemyColor = "rgba(0, 122, 255, 0.8)";
                     enemySize = 5;
                 }
 
-                ctx.fillStyle = doBlink ? "rgba(255, 45, 85, 1)" : enemyColor; 
+                ctx.fillStyle = doBlink ? "rgba(255, 45, 85, 1)" : enemyColor;
                 ctx.beginPath();
                 ctx.arc(ex, ey, enemySize, 0, 2 * Math.PI);
                 ctx.fill();
@@ -768,12 +688,11 @@
             return Math.atan2(Math.sin(angle), Math.cos(angle));
         }
 
-        // メインゲームループ
-        function gameLoopTick() {
+        function gameLoop() {
             if (isGameOver) return;
             updateEnemies();
             drawRadar();
-            // requestAnimationFrameはapplyParallaxから呼び出す
+            requestAnimationFrame(gameLoop);
         }
 
         function createShootVisual(x, y) {
@@ -791,7 +710,7 @@
             effect.className = "hit-effect";
             effect.style.left = `${x}px`;
             effect.style.top = `${y}px`;
-            effect.style.width = effect.style.height = `40px`; 
+            effect.style.width = effect.style.height = `40px`;
             document.body.appendChild(effect);
             setTimeout(() => effect.remove(), 300);
         }
@@ -800,13 +719,13 @@
             const popup = document.createElement("div");
             popup.className = "score-popup";
             popup.textContent = `+${value}`;
-            if (combo > 1) { 
+            if (combo > 1) {
                 popup.textContent += ` (${combo}x)`;
             }
             popup.style.left = `${x}px`;
             popup.style.top = `${y}px`;
             document.body.appendChild(popup);
-            setTimeout(() => popup.remove(), 900); 
+            setTimeout(() => popup.remove(), 900);
         }
 
         function updateScore(points) {
@@ -817,19 +736,12 @@
         function endGame() {
             if (isGameOver) return;
             isGameOver = true;
-            // ゲームオーバー時の振動 (重く連続的なバイブレーション)
-            vibrateDevice([200, 100, 200, 100, 200]); 
-            generateSound(200, 0.4, 'square', 0.6); // 低いサウンド
+            vibrateDevice([200, 100, 200, 100, 200]);
+            generateSound(200, 0.4, 'square', 0.6);
 
             if (enemySpawnInterval) clearInterval(enemySpawnInterval);
             finalScore.textContent = `FINAL SCORE: ${score}`;
             gameOverScreen.classList.add("visible");
-            
-            // ゲームオーバー画面の初期Z値とスケールを強制的に設定
-            const gameOverItem = uiElements.find(item => item.element === gameOverScreen);
-            if (gameOverItem) {
-                gameOverItem.currentTransform = `translateZ(150px) scale(1)`; // visibleクラスアニメーションの最終状態
-            }
         }
 
 
@@ -838,24 +750,17 @@
 
             createShootVisual(cx, cy);
             generateSound(880, 0.08, 'sine', 0.4);
-            vibrateDevice([20, 10, 20]); // ショット時の振動 (短く鋭い)
+            vibrateDevice([20, 10, 20]);
 
             shootButtonIcon.classList.add('bounce');
-            // shootButtonのZ軸アニメーションをCSSに任せるため、JSからのtransform操作を一時停止
-            shootButton.style.transition = 'transform 0.15s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.25s cubic-bezier(0.2, 0.8, 0.2, 1)'; // 元のtransitionを設定
-            shootButton.style.transform = `translateX(-50%) translateZ(40px) scale(0.97)`; // CSSの:activeに相当する値を強制適用
-
             setTimeout(() => {
                 shootButtonIcon.classList.remove('bounce');
-                // アニメーション終了後にCSSのtransitionを無効に戻し、JSによるパララックス制御に戻す
-                shootButton.style.transition = 'box-shadow 0.25s cubic-bezier(0.2, 0.8, 0.2, 1)'; // transform transitionを削除
-            }, 150); 
+            }, 150);
 
             shootCooldown = true;
             shootButton.classList.add("cooldown");
             shootCooldownBar.style.animation = `cooldownFill ${SHOOT_COOLDOWN_TIME / 1000}s linear forwards`;
-            // クールダウン時のZ軸はCSSのcooldownクラスで制御
-            
+
             setTimeout(() => {
                 shootCooldown = false;
                 shootButton.classList.remove("cooldown");
@@ -874,51 +779,40 @@
                         const ey = cy + e.distance * Math.sin(e.angle);
                         createHitEffect(ex, ey);
 
-                        // コンボシステムの更新
                         const currentTime = performance.now();
                         if (currentTime - lastKillTime < COMBO_RESET_TIME) {
                             comboCount++;
                         } else {
-                            comboCount = 1; // 新しいコンボ開始
+                            comboCount = 1;
                         }
                         lastKillTime = currentTime;
 
-                        // コンボ表示の更新とアニメーション
                         if (comboCount > 1) {
                             comboDisplay.textContent = `${comboCount} COMBO!`;
-                            comboDisplay.classList.add("active"); // activeクラスでアニメーション発火
-                            // 特定のコンボ数での振動 (短い達成感のある振動)
-                            if (comboCount % 3 === 0) { 
-                                vibrateDevice([30, 20, 30]); 
+                            comboDisplay.classList.add("active");
+                            if (comboCount % 3 === 0) {
+                                vibrateDevice([30, 20, 30]);
                             }
-                            // コンボ音階が上がる演出 (例: 250Hz, 300Hz, 350Hz...)
-                            generateSound(800 + comboCount * 50, 0.08, 'triangle', 0.6); 
+                            generateSound(800 + comboCount * 50, 0.08, 'triangle', 0.6);
                         } else {
                             comboDisplay.classList.remove("active");
-                            // コンボ表示が消えるときもヌルッと
                             comboDisplay.style.transition = 'opacity 0.5s ease-out, transform 0.5s ease-in';
                             comboDisplay.style.opacity = '0';
-                            // パララックスと競合しないよう、transition終了後にtransformをリセット
-                            const comboItem = uiElements.find(item => item.element === comboDisplay);
-                            if (comboItem) {
-                                comboItem.currentTransform = `translateY(20px) scale(0.8) translateZ(${comboItem.initialZ}px)`; // 初期状態を反映
-                            }
+                            comboDisplay.style.transform = 'translateY(20px) scale(0.8) translateZ(15px) translateX(calc(var(--tilt-x) * 0.6px)) translateY(calc(var(--tilt-y) * 0.6px))';
                             setTimeout(() => {
                                 comboDisplay.textContent = "";
-                                comboDisplay.style.transition = 'opacity 0.3s ease-out'; // transformはJSで制御
-                            }, 500); 
+                                comboDisplay.style.transition = 'opacity 0.3s ease-out, transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+                            }, 500);
                         }
 
-
                         let points = 100;
-                        // コンボボーナス
                         if (comboCount >= 2) {
-                            points = Math.floor(points * (1 + comboCount * 0.2)); 
+                            points = Math.floor(points * (1 + comboCount * 0.2));
                         }
                         updateScore(points);
                         showScorePopup(ex, ey, points, comboCount);
                         hit = true;
-                        vibrateDevice([40, 30, 40]); // 敵ヒット時の振動 (ショット時よりやや長く)
+                        vibrateDevice([40, 30, 40]);
                         generateSound(1000, 0.1, 'triangle', 0.5);
                         return false;
                     }
@@ -935,8 +829,6 @@
 
         window.onload = () => {
             startScreen.classList.remove('hidden');
-            // メインループを開始 (applyParallaxがrequestAnimationFrameを呼び出し、その中でgameLoopTickも実行)
-            applyParallax(); 
         };
 
         startScreen.addEventListener('click', requestDeviceOrientationPermissionAndStartGame);
@@ -944,6 +836,9 @@
         window.addEventListener('resize', () => {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
+            // リサイズ時にも現在の傾きを再適用することで、パララックスのズレを防ぐ
+            document.body.style.setProperty('--tilt-x', `${currentTiltX * 0.5}px`);
+            document.body.style.setProperty('--tilt-y', `${currentTiltY * 0.5}px`);
         });
 
     </script>
