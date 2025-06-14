@@ -2,187 +2,122 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8" />
-<title>本格質感マップデモ</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>触覚×音のリアル感サンプル</title>
 <style>
-  html, body {
-    margin: 0; padding: 0;
-    height: 100%;
-    background: #222;
-    overflow: hidden;
-    user-select: none;
-    touch-action: none;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen,
-      Ubuntu, Cantarell, "Open Sans", "Helvetica Neue", sans-serif;
-  }
-  #area {
-    width: 100vw;
+  body {
     height: 100vh;
-    position: relative;
-    background: linear-gradient(
-      to right,
-      #555 0%,
-      #888 33%,
-      #aaa 33%,
-      #aaa 66%,
-      #555 66%,
-      #555 100%
-    );
+    margin: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-family: sans-serif;
+    user-select: none;
+    background: #f0f0f0;
+    touch-action: none;
   }
-  #trail {
-    position: absolute;
-    pointer-events: none;
-    top: 0; left: 0;
-    width: 100%;
-    height: 100%;
-    mix-blend-mode: screen;
+  #info {
+    position: fixed;
+    top: 20px;
+    font-size: 18px;
+  }
+  #touchArea {
+    width: 90vw;
+    height: 70vh;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 24px;
+    color: #333;
+    user-select: none;
   }
 </style>
 </head>
 <body>
-<div id="area"></div>
-<canvas id="trail"></canvas>
+  <div id="info">スワイプしてみて！速度に応じて振動と音が変わるよ</div>
+  <div id="touchArea">ここを触ってスワイプ</div>
 
 <script>
-(() => {
-  const area = document.getElementById("area");
-  const trail = document.getElementById("trail");
-  const ctx = trail.getContext("2d");
-
-  // canvas サイズ設定
-  function resize() {
-    trail.width = window.innerWidth;
-    trail.height = window.innerHeight;
-  }
-  window.addEventListener("resize", resize);
-  resize();
-
-  let lastTouch = null;
+  const touchArea = document.getElementById('touchArea');
   let lastTime = 0;
+  let lastX = 0;
+  let lastY = 0;
 
-  // 質感判定
-  function getTextureType(x, width) {
-    const ratio = x / width;
-    if (ratio < 0.33) return "metal";
-    else if (ratio < 0.66) return "fabric";
-    else return "rubber";
-  }
+  // Web Audio API初期化
+  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  const oscillator = audioCtx.createOscillator();
+  const gainNode = audioCtx.createGain();
 
-  // スワイプ速度計算
-  function calculateSwipeSpeed(x, y, time) {
-    if (!lastTouch || !lastTime) return 0;
-    const dx = x - lastTouch.x;
-    const dy = y - lastTouch.y;
-    const dt = time - lastTime;
-    if (dt === 0) return 0;
-    return Math.sqrt(dx*dx + dy*dy) / dt;
-  }
+  oscillator.type = 'square'; // ザラザラ感出すならsquare波がいい感じ
+  oscillator.frequency.setValueAtTime(100, audioCtx.currentTime); // 初期周波数
+  gainNode.gain.setValueAtTime(0, audioCtx.currentTime); // 最初は無音
 
-  // バイブ振動パターン
-  function vibrateForTexture(type, speed) {
-    if (!("vibrate" in navigator)) return;
-    let pattern;
-    switch(type) {
-      case "metal":
-        pattern = speed > 0.5 ? [5, 5, 5, 5] : [10, 20, 10];
-        break;
-      case "fabric":
-        pattern = speed > 0.5 ? [30, 10] : [50];
-        break;
-      case "rubber":
-        pattern = speed > 0.5 ? [80, 20, 80] : [100];
-        break;
+  oscillator.connect(gainNode);
+  gainNode.connect(audioCtx.destination);
+  oscillator.start();
+
+  // 振動パターン関数（強さ0-1, 周波数Hz）
+  function vibratePattern(strength, frequency) {
+    if (!navigator.vibrate) return;
+    // 振動時間と休止時間を交互に作ることで周波数を表現
+    const duration = 10; // 1つの振動単位(ms)
+    const patternLength = 10; // パターンの繰り返し数
+    const onDuration = duration * strength; // 強さに応じて振動時間を調整
+    const offDuration = duration - onDuration;
+    let pattern = [];
+    for(let i=0; i<patternLength; i++) {
+      pattern.push(onDuration, offDuration);
     }
     navigator.vibrate(pattern);
   }
 
-  // 音響セットアップ
-  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  touchArea.addEventListener('touchstart', (e) => {
+    lastTime = e.timeStamp;
+    const t = e.touches[0];
+    lastX = t.clientX;
+    lastY = t.clientY;
+    if(audioCtx.state === 'suspended') audioCtx.resume();
+  });
 
-  function playFilteredNoise(type, speed) {
-    const bufferSize = 4096;
-    const noise = audioCtx.createScriptProcessor(bufferSize, 1, 1);
+  touchArea.addEventListener('touchmove', (e) => {
+    const t = e.touches[0];
+    const now = e.timeStamp;
+    const dx = t.clientX - lastX;
+    const dy = t.clientY - lastY;
+    const dt = now - lastTime;
 
-    const filter = audioCtx.createBiquadFilter();
-    if (type === "metal") {
-      filter.type = "highpass";
-      filter.frequency.value = 2000;
-    } else if (type === "fabric") {
-      filter.type = "lowpass";
-      filter.frequency.value = 800;
-    } else {
-      filter.type = "bandpass";
-      filter.frequency.value = 500;
-    }
+    if (dt === 0) return;
 
-    noise.onaudioprocess = e => {
-      const output = e.outputBuffer.getChannelData(0);
-      for (let i = 0; i < bufferSize; i++) {
-        output[i] = (Math.random() * 2 - 1) * (speed / 3);
-      }
-    };
+    // スワイプ速度(px/ms)
+    const speed = Math.sqrt(dx*dx + dy*dy) / dt;
 
-    noise.connect(filter);
-    filter.connect(audioCtx.destination);
+    // 振動強さはspeedを0~1に正規化（max速度は0.8くらいに設定）
+    const strength = Math.min(speed / 0.8, 1);
 
-    setTimeout(() => {
-      noise.disconnect();
-      filter.disconnect();
-    }, 500);
-  }
+    // 周波数は低速で50Hz〜高速で300Hzくらいまで変化
+    const frequency = 50 + strength * 250;
 
-  // 視覚エフェクト：スワイプ軌跡描画
-  function updateVisualEffect(type, x, y) {
-    let color;
-    switch(type) {
-      case "metal":
-        color = "rgba(200, 200, 255, 0.7)";
-        break;
-      case "fabric":
-        color = "rgba(200, 255, 200, 0.7)";
-        break;
-      case "rubber":
-        color = "rgba(255, 200, 200, 0.7)";
-        break;
-    }
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    ctx.arc(x, y, 10, 0, 2 * Math.PI);
-    ctx.fill();
-  }
+    // 振動パターン実行
+    vibratePattern(strength, frequency);
 
-  // 軌跡を徐々に消す処理
-  function fadeTrail() {
-    ctx.fillStyle = "rgba(34, 34, 34, 0.15)";
-    ctx.fillRect(0, 0, trail.width, trail.height);
-    requestAnimationFrame(fadeTrail);
-  }
-  fadeTrail();
+    // 音の音量と周波数を変化
+    gainNode.gain.setTargetAtTime(strength * 0.2, audioCtx.currentTime, 0.01);
+    oscillator.frequency.setTargetAtTime(frequency, audioCtx.currentTime, 0.01);
 
-  area.addEventListener("touchmove", e => {
-    e.preventDefault();
-    const touch = e.touches[0];
-    const x = touch.clientX;
-    const y = touch.clientY;
-    const now = performance.now();
-
-    const speed = calculateSwipeSpeed(x, y, now);
-    const type = getTextureType(x, window.innerWidth);
-
-    vibrateForTexture(type, speed);
-    playFilteredNoise(type, speed);
-    updateVisualEffect(type, x, y);
-
-    lastTouch = { x, y };
+    lastX = t.clientX;
+    lastY = t.clientY;
     lastTime = now;
   });
 
-  // audioCtxの自動サスペンド回避（iOSなど）
-  document.body.addEventListener('touchstart', () => {
-    if (audioCtx.state === 'suspended') {
-      audioCtx.resume();
-    }
+  touchArea.addEventListener('touchend', (e) => {
+    // 振動停止
+    navigator.vibrate(0);
+    // 音消す
+    gainNode.gain.setTargetAtTime(0, audioCtx.currentTime, 0.1);
   });
-})();
 </script>
 </body>
 </html>
