@@ -2,38 +2,34 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8" />
-  <title>振動同期サンプル</title>
+  <title>リアルパンチ振動デモ</title>
 </head>
 <body>
-  <video id="movie" width="640" controls>
-    <source src="your_movie.mp4" type="video/mp4" />
-    お使いのブラウザは動画タグに対応していません。
-  </video>
+  <button id="punchBtn">強烈パンチを体感！🤜</button>
 
   <script>
-    const video = document.getElementById('movie');
+    const btn = document.getElementById('punchBtn');
 
-    // 振動を起こすタイミング（秒）とパターンを配列で管理
-    const vibrationEvents = [
-      { time: 2.5, pattern: [100, 50, 100] },  // 2.5秒で振動パターン開始
-      { time: 5.0, pattern: [200] },           // 5秒で強めの単発振動
-      { time: 8.0, pattern: [50, 30, 50, 30, 50] } // 8秒で連続パルス振動
-    ];
+    btn.addEventListener('click', () => {
+      if (!navigator.vibrate) {
+        alert('このデバイスは振動に対応していません');
+        return;
+      }
 
-    // 振動イベントの処理済み管理
-    let triggeredEvents = new Set();
-
-    video.addEventListener('timeupdate', () => {
-      const currentTime = video.currentTime;
-
-      vibrationEvents.forEach(event => {
-        if (!triggeredEvents.has(event.time) && currentTime >= event.time) {
-          if (navigator.vibrate) {
-            navigator.vibrate(event.pattern);
-          }
-          triggeredEvents.add(event.time);
-        }
-      });
+      // 強烈な連打パンチをイメージした振動パターン
+      // 200ms強振動＋70ms休み＋150ms中振動＋50ms休み＋100ms弱振動＋短休みを3連続
+      const pattern = [
+        200, 70,
+        150, 50,
+        100, 30,
+        200, 70,
+        150, 50,
+        100, 30,
+        200, 70,
+        150, 50,
+        100
+      ];
+      navigator.vibrate(pattern);
     });
   </script>
 </body>
