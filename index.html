@@ -1,1597 +1,949 @@
 <!DOCTYPE html>
-
 <html lang="ja">
-
 <head>
-
-    <meta charset="UTF-8" />
-
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-
-    <title>Haptic Dot Shooter</title>
-
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
-
-    <style>
-
-        body {
-
-            margin: 0;
-
-            background: linear-gradient(135deg, #f0f2f5, #e0e5ec);
-
-            overflow: hidden;
-
-            /* タイポグラフィガイドラインに準拠 */
-
-            font-family: -apple-system, BlinkMacSystemFont, "SF Pro", 'Inter', sans-serif;
-
-            color: #333;
-
-            display: flex;
-
-            justify-content: center;
-
-            align-items: center;
-
-            width: 100vw;
-
-            min-height: 100vh;
-
-            position: relative;
-
-            user-select: none;
-
-            -webkit-font-smoothing: antialiased;
-
-            -moz-osx-font-smoothing: grayscale;
-
-            
-
-            /* 3D表現の基盤: perspective をbodyまたは親要素に設定 */
-
-            perspective: 1000px; /* 奥行きの知覚に影響 */
-
-        }
-
-
-
-        #radarCanvas {
-
-            width: 100vw;
-
-            height: 100vh;
-
-            touch-action: none;
-
-            display: block;
-
-            position: absolute;
-
-            top: 0;
-
-            left: 0;
-
-            z-index: 1;
-
-            background: radial-gradient(circle at center, rgba(100, 100, 100, 0.03) 0%, rgba(0, 0, 0, 0) 70%);
-
-            /* レーダー自体も少し奥に配置 */
-
-            transform: translateZ(-100px); 
-
-        }
-
-
-
-        #shootButton {
-
-            position: fixed;
-
-            bottom: 40px; 
-
-            left: 50%;
-
-            transform-style: preserve-3d; /* 子要素の3D変換を保持 */
-
-            transform: translateX(-50%) translateZ(50px); /* 手前に浮かせ、奥行きを明確に */
-
-            width: 80%;
-
-            max-width: 400px;
-
-            height: 70px;
-
-            border-radius: 35px; 
-
-            
-
-            /* Liquid Glass スタイル */
-
-            background: rgba(255, 255, 255, 0.15); /* 透明度をやや下げる */
-
-            backdrop-filter: blur(20px) saturate(1.2); /* ブラーと彩度を強調 */
-
-            -webkit-backdrop-filter: blur(20px) saturate(1.2);
-
-            border: 1px solid rgba(255, 255, 255, 0.7); /* ボーダーを強調 */
-
-            border-bottom-color: rgba(255, 255, 255, 0.3); 
-
-            border-right-color: rgba(255, 255, 255, 0.3); 
-
-            
-
-            color: #555;
-
-            font-size: 1.6rem; 
-
-            font-weight: 600;
-
-            
-
-            /* 影を多層化し、奥行きを強調 */
-
-            box-shadow: 
-
-                0 25px 50px rgba(0, 0, 0, 0.25), /* 大きく、ぼやけた影で浮遊感 */
-
-                0 0 0 1.5px rgba(255, 255, 255, 0.95) inset, /* 強い内側ハイライト */
-
-                0 0 0 3px rgba(255, 255, 255, 0.6) inset; /* 柔らかい内側ハイライト */
-
-            
-
-            display: flex;
-
-            flex-direction: column;
-
-            align-items: center;
-
-            justify-content: center;
-
-            transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
-
-            cursor: pointer;
-
-            outline: none;
-
-            z-index: 10;
-
-            overflow: hidden;
-
-        }
-
-
-
-        #shootButton .icon {
-
-            font-size: 2.2rem;
-
-            line-height: 1;
-
-            color: rgba(0, 122, 255, 0.8);
-
-            transition: transform 0.1s ease-out, color 0.1s ease-out;
-
-            transform: translateZ(5px); /* アイコンも少し浮かす */
-
-        }
-
-
-
-        #shootButton:not(.cooldown):active {
-
-            transform: translateX(-50%) translateZ(40px) scale(0.97); /* 押し込み時にZ軸も手前に */
-
-            /* アクティブ時の影を調整 */
-
-            box-shadow: 
-
-                0 10px 20px rgba(0, 0, 0, 0.15),
-
-                0 0 0 1px rgba(255, 255, 255, 0.85) inset,
-
-                0 0 0 2px rgba(255, 255, 255, 0.5) inset;
-
-        }
-
-        #shootButton:not(.cooldown) .icon.bounce {
-
-            animation: shootButtonBounce 0.15s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards;
-
-            color: rgba(0, 122, 255, 1);
-
-        }
-
-        @keyframes shootButtonBounce {
-
-            0% { transform: scale(1) translateZ(5px); }
-
-            50% { transform: scale(1.1) translateZ(10px); } /* より大きく浮き上がる */
-
-            100% { transform: scale(1) translateZ(5px); }
-
-        }
-
-
-
-        #shootButton.cooldown {
-
-            background: rgba(255, 255, 255, 0.1);
-
-            border-color: rgba(255, 255, 255, 0.3);
-
-            color: rgba(100, 100, 100, 0.5);
-
-            box-shadow: none;
-
-            cursor: not-allowed;
-
-            transform: translateX(-50%) translateZ(45px); /* クールダウン時も少し奥に */
-
-        }
-
-        #shootButton.cooldown .icon {
-
-            color: rgba(100, 100, 100, 0.5);
-
-        }
-
-
-
-        #shootButton .cooldown-bar {
-
-            position: absolute;
-
-            bottom: 0;
-
-            left: 0;
-
-            width: 100%;
-
-            height: 5px;
-
-            background: linear-gradient(90deg, rgba(0, 122, 255, 0.8), rgba(0, 198, 255, 0.8));
-
-            transform-origin: left;
-
-            animation: cooldownFill linear forwards;
-
-            transform: translateZ(1px); /* バーも少し浮かす */
-
-        }
-
-        @keyframes cooldownFill {
-
-            from { transform: scaleX(0) translateZ(1px); }
-
-            to { transform: scaleX(1) translateZ(1px); }
-
-        }
-
-
-
-        .shoot-visual {
-
-            position: absolute;
-
-            background: rgba(0, 122, 255, 0.5);
-
-            border-radius: 50%;
-
-            transform: translate(-50%, -50%) scale(0) translateZ(20px); /* より手前から発射されるように */
-
-            opacity: 0;
-
-            animation: shootVisual 0.3s ease-out forwards;
-
-            pointer-events: none;
-
-            z-index: 5;
-
-        }
-
-
-
-        @keyframes shootVisual {
-
-            0% {
-
-                transform: translate(-50%, -50%) scale(0.3) translateZ(20px);
-
-                opacity: 1;
-
-            }
-
-            100% {
-
-                transform: translate(-50%, -50%) scale(8) translateZ(-50px); /* 画面の奥に広がるように */
-
-                opacity: 0;
-
-            }
-
-        }
-
-
-
-        .hit-effect {
-
-            position: absolute;
-
-            background: radial-gradient(circle, rgba(0, 200, 255, 0.9) 0%, rgba(0, 150, 255, 0.6) 40%, rgba(0, 122, 255, 0) 70%); 
-
-            border-radius: 50%;
-
-            animation: hitEffect 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-
-            pointer-events: none;
-
-            z-index: 6;
-
-            transform-origin: center center;
-
-            transform: translateZ(10px); /* 敵のヒットも手前で */
-
-        }
-
-
-
-        @keyframes hitEffect {
-
-            0% {
-
-                transform: scale(0) translateZ(10px);
-
-                opacity: 1;
-
-            }
-
-            100% {
-
-                transform: scale(3.5) translateZ(-20px); /* 爆発が奥に広がる */
-
-                opacity: 0;
-
-            }
-
-        }
-
-
-
-        .enemy-particle {
-
-            position: absolute;
-
-            background: rgba(255, 255, 255, 0.9);
-
-            border-radius: 50%;
-
-            opacity: 0;
-
-            animation: particleFade 0.8s ease-out forwards;
-
-            pointer-events: none;
-
-            z-index: 4; 
-
-            transform-style: preserve-3d;
-
-        }
-
-
-
-        @keyframes particleFade {
-
-            0% {
-
-                transform: scale(0.2) translateZ(0); /* 敵と同じZ軸から */
-
-                opacity: 0.9;
-
-            }
-
-            100% {
-
-                transform: scale(1.8) translateZ(20px); /* 手前に散る */
-
-                opacity: 0;
-
-            }
-
-        }
-
-
-
-        .score-popup {
-
-            position: absolute;
-
-            color: rgba(0, 122, 255, 1);
-
-            font-size: 1.8rem;
-
-            font-weight: 700;
-
-            font-family: inherit;
-
-            animation: scoreFadeOut 0.9s cubic-bezier(0.165, 0.84, 0.44, 1) forwards;
-
-            opacity: 0;
-
-            pointer-events: none;
-
-            z-index: 7;
-
-            text-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
-
-            transform-style: preserve-3d; /* 3D空間で動かす */
-
-        }
-
-
-
-        @keyframes scoreFadeOut {
-
-            0% {
-
-                transform: translateY(0) scale(1) translateZ(10px); /* 撃破時と同じZ軸から */
-
-                opacity: 1;
-
-            }
-
-            20% {
-
-                transform: translateY(-15px) scale(1.1) translateZ(20px); /* 手前かつ上へ */
-
-            }
-
-            100% {
-
-                transform: translateY(-50px) scale(0.7) translateZ(30px); /* さらに手前へ浮き上がりながら消える */
-
-                opacity: 0;
-
-            }
-
-        }
-
-
-
-        #scoreDisplay {
-
-            position: fixed;
-
-            top: 25px; 
-
-            left: 25px; 
-
-            font-size: 3rem;
-
-            font-weight: 700;
-
-            color: #333;
-
-            text-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
-
-            z-index: 10;
-
-            font-family: inherit;
-
-            transform: translateZ(20px); /* スコアも手前に浮かす */
-
-        }
-
-
-
-        #comboDisplay {
-
-            position: fixed;
-
-            top: 100px;
-
-            left: 25px;
-
-            font-size: 2.2rem;
-
-            font-weight: 700;
-
-            color: rgba(0, 122, 255, 1);
-
-            text-shadow: 0 2px 8px rgba(0, 123, 255, 0.2);
-
-            z-index: 10;
-
-            font-family: inherit;
-
-            opacity: 0;
-
-            transform-style: preserve-3d;
-
-            transform: translateY(20px) scale(0.8) translateZ(15px); /* 最初は少し下から小さく、手前に */
-
-            transition: opacity 0.3s ease-out, transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-
-        }
-
-
-
-        #comboDisplay.active {
-
-            opacity: 1;
-
-            transform: translateY(0) scale(1) translateZ(25px); /* アクティブ時はより手前に浮き上がる */
-
-        }
-
-
-
-        #gameOverScreen {
-
-            position: fixed;
-
-            top: 0;
-
-            left: 0;
-
-            width: 100vw;
-
-            height: 100vh;
-
-            background: rgba(255, 255, 255, 0.7); /* 透明度をさらに下げる */
-
-            backdrop-filter: blur(35px) saturate(1.3); /* ぼかしと彩度をさらに強化 */
-
-            -webkit-backdrop-filter: blur(35px) saturate(1.3);
-
-            display: flex;
-
-            flex-direction: column;
-
-            justify-content: center;
-
-            align-items: center;
-
-            color: #333;
-
-            font-size: 2rem;
-
-            z-index: 100;
-
-            opacity: 0;
-
-            visibility: hidden;
-
-            transition: opacity 0.6s ease-in-out, transform 0.6s ease-in-out;
-
-            border-radius: 16px;
-
-            transform-style: preserve-3d;
-
-            transform: translateZ(50px) scale(0.9); /* 最初は少し奥から小さく */
-
-        }
-
-
-
-        #gameOverScreen.visible {
-
-            opacity: 1;
-
-            visibility: visible;
-
-            transform: translateZ(150px) scale(1); /* 目の前に大きく浮かび上がる */
-
-        }
-
-
-
-        #gameOverScreen h2 {
-
-            font-size: 5rem;
-
-            color: rgba(255, 45, 85, 0.9);
-
-            margin-bottom: 25px;
-
-            text-shadow: 0 0 20px rgba(255, 45, 85, 0.5); /* 影をさらに強調 */
-
-            font-weight: 700;
-
-            transform: translateZ(10px); /* タイトルも少し浮かす */
-
-        }
-
-
-
-        #finalScore {
-
-            font-size: 3.5rem;
-
-            margin-bottom: 50px;
-
-            color: rgba(0, 122, 255, 1);
-
-            text-shadow: 0 0 15px rgba(0, 123, 255, 0.4);
-
-            font-family: inherit;
-
-            font-weight: 600;
-
-            transform: translateZ(5px); /* スコアも少し浮かす */
-
-        }
-
-
-
-        #restartButton {
-
-            padding: 18px 45px;
-
-            background: rgba(255, 255, 255, 0.5); /* 透明度を調整 */
-
-            border: 1px solid rgba(255, 255, 255, 0.9); /* ボーダーを強調 */
-
-            border-bottom-color: rgba(255, 255, 255, 0.5);
-
-            border-right-color: rgba(255, 255, 255, 0.5);
-
-            border-radius: 12px;
-
-            color: rgba(0, 122, 255, 1);
-
-            font-size: 1.8rem;
-
-            font-weight: 700;
-
-            cursor: pointer;
-
-            transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
-
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2); /* 影を大きく */
-
-            font-family: inherit;
-
-            transform-style: preserve-3d;
-
-            transform: translateZ(10px); /* ボタンも少し浮かす */
-
-        }
-
-
-
-        #restartButton:hover {
-
-            background: rgba(255, 255, 255, 0.7);
-
-            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.25); /* ホバー時の影をさらに強調 */
-
-            transform: translateY(-5px) translateZ(20px); /* より手前へ、より大きく */
-
-        }
-
-        #restartButton:active {
-
-            transform: scale(0.96) translateZ(8px); /* 押し込み時にZ軸も */
-
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
-
-        }
-
-
-
-        /* スタート画面のスタイル */
-
-        #startScreen {
-
-            position: fixed;
-
-            top: 0;
-
-            left: 0;
-
-            width: 100vw;
-
-            height: 100vh;
-
-            background: rgba(0, 0, 0, 0.9); /* 少し透明度を上げる */
-
-            color: white;
-
-            display: flex;
-
-            flex-direction: column;
-
-            justify-content: center;
-
-            align-items: center;
-
-            font-size: 1.8rem;
-
-            z-index: 200;
-
-            text-align: center;
-
-            font-family: inherit;
-
-            cursor: pointer;
-
-            transition: opacity 0.5s ease-out;
-
-            transform-style: preserve-3d;
-
-            transform: translateZ(200px); /* スタート画面を最も手前に */
-
-        }
-
-
-
-        #startScreen.hidden {
-
-            opacity: 0;
-
-            pointer-events: none;
-
-            transform: translateZ(0px); /* 奥に引っ込むように消える */
-
-        }
-
-
-
-        #startScreen p {
-
-            margin-bottom: 25px;
-
-            font-size: 2.8rem;
-
-            font-weight: 700;
-
-            color: #f0f0f0;
-
-            transform: translateZ(5px); /* テキストも浮かす */
-
-        }
-
-
-
-        #startScreen span {
-
-            font-size: 1.3rem;
-
-            opacity: 0.85;
-
-            color: #ccc;
-
-            transform: translateZ(2px); /* テキストも浮かす */
-
-        }
-
-
-
-    </style>
-
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Haptic Dot Shooter</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            background: linear-gradient(135deg, #f0f2f5, #e0e5ec);
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro", 'Inter', sans-serif;
+            color: #333;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100vw;
+            min-height: 100vh;
+            position: relative;
+            user-select: none;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            perspective: 1000px;
+        }
+
+        #radarCanvas {
+            width: 100vw;
+            height: 100vh;
+            touch-action: none;
+            display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+            background: radial-gradient(circle at center, rgba(100, 100, 100, 0.03) 0%, rgba(0, 0, 0, 0) 70%);
+            transform: translateZ(-100px);
+        }
+
+        #shootButton {
+            position: fixed;
+            bottom: 40px;
+            left: 50%;
+            transform-style: preserve-3d;
+            transform: translateX(-50%) translateZ(50px);
+            width: 80%;
+            max-width: 400px;
+            height: 70px;
+            border-radius: 35px;
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(20px) saturate(1.2);
+            -webkit-backdrop-filter: blur(20px) saturate(1.2);
+            border: 1px solid rgba(255, 255, 255, 0.7);
+            border-bottom-color: rgba(255, 255, 255, 0.3);
+            border-right-color: rgba(255, 255, 255, 0.3);
+            color: #555;
+            font-size: 1.6rem;
+            font-weight: 600;
+            box-shadow:
+                0 25px 50px rgba(0, 0, 0, 0.25),
+                0 0 0 1.5px rgba(255, 255, 255, 0.95) inset,
+                0 0 0 3px rgba(255, 255, 255, 0.6) inset;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+            cursor: pointer;
+            outline: none;
+            z-index: 10;
+            overflow: hidden;
+        }
+
+        #shootButton .icon {
+            font-size: 2.2rem;
+            line-height: 1;
+            color: rgba(0, 122, 255, 0.8);
+            transition: transform 0.1s ease-out, color 0.1s ease-out;
+            transform: translateZ(5px);
+        }
+
+        #shootButton:not(.cooldown):active {
+            transform: translateX(-50%) translateZ(40px) scale(0.97);
+            box-shadow:
+                0 10px 20px rgba(0, 0, 0, 0.15),
+                0 0 0 1px rgba(255, 255, 255, 0.85) inset,
+                0 0 0 2px rgba(255, 255, 255, 0.5) inset;
+        }
+        #shootButton:not(.cooldown) .icon.bounce {
+            animation: shootButtonBounce 0.15s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards;
+            color: rgba(0, 122, 255, 1);
+        }
+        @keyframes shootButtonBounce {
+            0% { transform: scale(1) translateZ(5px); }
+            50% { transform: scale(1.1) translateZ(10px); }
+            100% { transform: scale(1) translateZ(5px); }
+        }
+
+        #shootButton.cooldown {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.3);
+            color: rgba(100, 100, 100, 0.5);
+            box-shadow: none;
+            cursor: not-allowed;
+            transform: translateX(-50%) translateZ(45px);
+        }
+        #shootButton.cooldown .icon {
+            color: rgba(100, 100, 100, 0.5);
+        }
+
+        #shootButton .cooldown-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 5px;
+            background: linear-gradient(90deg, rgba(0, 122, 255, 0.8), rgba(0, 198, 255, 0.8));
+            transform-origin: left;
+            animation: cooldownFill linear forwards;
+            transform: translateZ(1px);
+        }
+        @keyframes cooldownFill {
+            from { transform: scaleX(0) translateZ(1px); }
+            to { transform: scaleX(1) translateZ(1px); }
+        }
+
+        .shoot-visual {
+            position: absolute;
+            background: rgba(0, 122, 255, 0.5);
+            border-radius: 50%;
+            transform: translate(-50%, -50%) scale(0) translateZ(20px);
+            opacity: 0;
+            animation: shootVisual 0.3s ease-out forwards;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        @keyframes shootVisual {
+            0% {
+                transform: translate(-50%, -50%) scale(0.3) translateZ(20px);
+                opacity: 1;
+            }
+            100% {
+                transform: translate(-50%, -50%) scale(8) translateZ(-50px);
+                opacity: 0;
+            }
+        }
+
+        .hit-effect {
+            position: absolute;
+            background: radial-gradient(circle, rgba(0, 200, 255, 0.9) 0%, rgba(0, 150, 255, 0.6) 40%, rgba(0, 122, 255, 0) 70%);
+            border-radius: 50%;
+            animation: hitEffect 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            pointer-events: none;
+            z-index: 6;
+            transform-origin: center center;
+            transform: translateZ(10px);
+        }
+
+        @keyframes hitEffect {
+            0% {
+                transform: scale(0) translateZ(10px);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(3.5) translateZ(-20px);
+                opacity: 0;
+            }
+        }
+
+        .enemy-particle {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.9);
+            border-radius: 50%;
+            opacity: 0;
+            animation: particleFade 0.8s ease-out forwards;
+            pointer-events: none;
+            z-index: 4;
+            transform-style: preserve-3d;
+        }
+
+        @keyframes particleFade {
+            0% {
+                transform: scale(0.2) translateZ(0);
+                opacity: 0.9;
+            }
+            100% {
+                transform: scale(1.8) translateZ(20px);
+                opacity: 0;
+            }
+        }
+
+        .score-popup {
+            position: absolute;
+            color: rgba(0, 122, 255, 1);
+            font-size: 1.8rem;
+            font-weight: 700;
+            font-family: inherit;
+            animation: scoreFadeOut 0.9s cubic-bezier(0.165, 0.84, 0.44, 1) forwards;
+            opacity: 0;
+            pointer-events: none;
+            z-index: 7;
+            text-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
+            transform-style: preserve-3d;
+        }
+
+        @keyframes scoreFadeOut {
+            0% {
+                transform: translateY(0) scale(1) translateZ(10px);
+                opacity: 1;
+            }
+            20% {
+                transform: translateY(-15px) scale(1.1) translateZ(20px);
+            }
+            100% {
+                transform: translateY(-50px) scale(0.7) translateZ(30px);
+                opacity: 0;
+            }
+        }
+
+        #scoreDisplay {
+            position: fixed;
+            top: 25px;
+            left: 25px;
+            font-size: 3rem;
+            font-weight: 700;
+            color: #333;
+            text-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
+            z-index: 10;
+            font-family: inherit;
+            transform: translateZ(20px);
+        }
+
+        #comboDisplay {
+            position: fixed;
+            top: 100px;
+            left: 25px;
+            font-size: 2.2rem;
+            font-weight: 700;
+            color: rgba(0, 122, 255, 1);
+            text-shadow: 0 2px 8px rgba(0, 123, 255, 0.2);
+            z-index: 10;
+            font-family: inherit;
+            opacity: 0;
+            transform-style: preserve-3d;
+            transform: translateY(20px) scale(0.8) translateZ(15px);
+            transition: opacity 0.3s ease-out, transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        #comboDisplay.active {
+            opacity: 1;
+            transform: translateY(0) scale(1) translateZ(25px);
+        }
+
+        #gameOverScreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(35px) saturate(1.3);
+            -webkit-backdrop-filter: blur(35px) saturate(1.3);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: #333;
+            font-size: 2rem;
+            z-index: 100;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.6s ease-in-out, transform 0.6s ease-in-out;
+            border-radius: 16px;
+            transform-style: preserve-3d;
+            transform: translateZ(50px) scale(0.9);
+        }
+
+        #gameOverScreen.visible {
+            opacity: 1;
+            visibility: visible;
+            transform: translateZ(150px) scale(1);
+        }
+
+        #gameOverScreen h2 {
+            font-size: 5rem;
+            color: rgba(255, 45, 85, 0.9);
+            margin-bottom: 25px;
+            text-shadow: 0 0 20px rgba(255, 45, 85, 0.5);
+            font-weight: 700;
+            transform: translateZ(10px);
+        }
+
+        #finalScore {
+            font-size: 3.5rem;
+            margin-bottom: 50px;
+            color: rgba(0, 122, 255, 1);
+            text-shadow: 0 0 15px rgba(0, 123, 255, 0.4);
+            font-family: inherit;
+            font-weight: 600;
+            transform: translateZ(5px);
+        }
+
+        #restartButton {
+            padding: 18px 45px;
+            background: rgba(255, 255, 255, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.9);
+            border-bottom-color: rgba(255, 255, 255, 0.5);
+            border-right-color: rgba(255, 255, 255, 0.5);
+            border-radius: 12px;
+            color: rgba(0, 122, 255, 1);
+            font-size: 1.8rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            font-family: inherit;
+            transform-style: preserve-3d;
+            transform: translateZ(10px);
+        }
+
+        #restartButton:hover {
+            background: rgba(255, 255, 255, 0.7);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.25);
+            transform: translateY(-5px) translateZ(20px);
+        }
+        #restartButton:active {
+            transform: scale(0.96) translateZ(8px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
+        }
+
+        /* スタート画面のスタイル */
+        #startScreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.8rem;
+            z-index: 200;
+            text-align: center;
+            font-family: inherit;
+            cursor: pointer;
+            transition: opacity 0.5s ease-out;
+            transform-style: preserve-3d;
+            transform: translateZ(200px);
+        }
+
+        #startScreen.hidden {
+            opacity: 0;
+            pointer-events: none;
+            transform: translateZ(0px);
+        }
+
+        #startScreen p {
+            margin-bottom: 25px;
+            font-size: 2.8rem;
+            font-weight: 700;
+            color: #f0f0f0;
+            transform: translateZ(5px);
+        }
+
+        #startScreen span {
+            font-size: 1.3rem;
+            opacity: 0.85;
+            color: #ccc;
+            transform: translateZ(2px);
+        }
+
+        /* 車両モーションキュー風ドットのスタイル */
+        .motion-cue-dot {
+            position: fixed;
+            background-color: rgba(255, 255, 255, 0.7); /* 白いドット */
+            border-radius: 50%;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.1s ease-out;
+            z-index: 99; /* 他のUIより手前に */
+        }
+    </style>
 </head>
-
 <body>
-
-    <canvas id="radarCanvas"></canvas>
-
-    <button id="shootButton">
-
-        <span class="icon">●</span>
-
-        <div class="cooldown-bar"></div>
-
-    </button>
-
-    <div id="scoreDisplay">0</div>
-
-    <div id="comboDisplay"></div> <div id="gameOverScreen">
-
-        <h2>GAME OVER</h2>
-
-        <div id="finalScore">FINAL SCORE: 0</div>
-
-        <button id="restartButton">RESTART</button>
-
-    </div>
-
-
-
-    <div id="startScreen">
-
-        <p>TAP TO START</p>
-
-        <span>(センサーと音声を有効にします)</span>
-
-    </div>
-
-
-
-    <script>
-
-        const canvas = document.getElementById("radarCanvas");
-
-        const ctx = canvas.getContext("2d");
-
-        const shootButton = document.getElementById("shootButton");
-
-        const shootButtonIcon = shootButton.querySelector('.icon');
-
-        const shootCooldownBar = shootButton.querySelector('.cooldown-bar');
-
-        const scoreDisplay = document.getElementById("scoreDisplay");
-
-        const comboDisplay = document.getElementById("comboDisplay"); // コンボ表示用
-
-        const gameOverScreen = document.getElementById("gameOverScreen");
-
-        const finalScore = document.getElementById("finalScore");
-
-        const restartButton = document.getElementById("restartButton");
-
-        const startScreen = document.getElementById("startScreen");
-
-
-
-        canvas.width = window.innerWidth;
-
-        canvas.height = window.innerHeight;
-
-
-
-        let enemies = [];
-
-        let playerAngle = 0;
-
-        const cx = canvas.width / 2;
-
-        const cy = canvas.height / 2;
-
-        let score = 0;
-
-        let isGameOver = false;
-
-        let shootCooldown = false;
-
-        const SHOOT_COOLDOWN_TIME = 500;
-
-
-
-        let comboCount = 0; // コンボ数
-
-        let lastKillTime = 0; // 最後に敵を倒した時間
-
-        const COMBO_RESET_TIME = 1500; // コンボがリセットされるまでの時間 (ms)
-
-
-
-        let audioContext;
-
-
-
-        // バイブレーション関数を抽象化
-
-        function vibrateDevice(pattern) {
-
-            if (navigator.vibrate) {
-
-                navigator.vibrate(pattern);
-
-            }
-
-        }
-
-
-
-        function generateSound(frequency, duration, type = 'sine', volume = 0.5) {
-
-            if (!audioContext) return;
-
-            const oscillator = audioContext.createOscillator();
-
-            const gainNode = audioContext.createGain();
-
-
-
-            oscillator.connect(gainNode);
-
-            gainNode.connect(audioContext.destination);
-
-
-
-            oscillator.type = type;
-
-            oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
-
-            gainNode.gain.setValueAtTime(volume, audioContext.currentTime);
-
-            gainNode.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + duration);
-
-
-
-            oscillator.start(audioContext.currentTime);
-
-            oscillator.stop(audioContext.currentTime + duration);
-
-        }
-
-
-
-        function initGame() {
-
-            enemies = [];
-
-            score = 0;
-
-            comboCount = 0; // ゲーム開始時にコンボをリセット
-
-            lastKillTime = 0;
-
-            isGameOver = false;
-
-            shootCooldown = false;
-
-            scoreDisplay.textContent = "0";
-
-            comboDisplay.textContent = "";
-
-            comboDisplay.classList.remove("active");
-
-            gameOverScreen.classList.remove("visible");
-
-            playerAngle = 0;
-
-            if (enemySpawnInterval) clearInterval(enemySpawnInterval);
-
-            enemySpawnInterval = setInterval(spawnEnemy, 2500);
-
-            gameLoop();
-
-        }
-
-
-
-        function requestDeviceOrientationPermissionAndStartGame() {
-
-            if (!audioContext) {
-
-                audioContext = new (window.AudioContext || window.webkitAudioContext)();
-
-            }
-
-
-
-            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-
-                DeviceOrientationEvent.requestPermission()
-
-                    .then(permissionState => {
-
-                        if (permissionState === 'granted') {
-
-                            window.addEventListener("deviceorientation", handleDeviceOrientation);
-
-                            startScreen.classList.add('hidden');
-
-                            initGame();
-
-                        } else {
-
-                            alert('ジャイロセンサーの利用が拒否されました。ゲームをプレイできません。ブラウザの設定で許可が必要な場合があります。');
-
-                        }
-
-                    })
-
-                    .catch(error => {
-
-                        console.error("DeviceOrientationEvent.requestPermission error:", error);
-
-                        alert('ジャイロセンサーの許可リクエスト中にエラーが発生しました。お使いのデバイスが対応しているか確認してください。');
-
-                    });
-
-            } else {
-
-                window.addEventListener("deviceorientation", handleDeviceOrientation);
-
-                startScreen.classList.add('hidden');
-
-                initGame();
-
-            }
-
-        }
-
-
-
-        function handleDeviceOrientation(e) {
-
-            if (e.alpha !== null) {
-
-                playerAngle = -e.alpha * Math.PI / 180;
-
-            }
-
-        }
-
-
-
-        function spawnEnemy() {
-
-            if (isGameOver) return;
-
-            const angle = Math.random() * 2 * Math.PI;
-
-            const radius = Math.max(canvas.width, canvas.height) / 2 + 50;
-
-            enemies.push({
-
-                angle: angle,
-
-                distance: radius,
-
-                speed: 0.5 + Math.random() * 0.3,
-
-                health: 1,
-
-                isApproaching: false
-
-            });
-
-        }
-
-
-
-        function updateEnemies() {
-
-            enemies.forEach(e => {
-
-                e.distance -= e.speed;
-
-                if (e.distance < 150 && !e.isApproaching) {
-
-                    e.isApproaching = true;
-
-                    // 敵が接近した際のバイブレーションとサウンド (Nintendo的なポップな遊び心)
-
-                    vibrateDevice([30, 20, 30]); 
-
-                    generateSound(440, 0.05, 'sawtooth', 0.3);
-
-                }
-
-                // 敵が一定距離に近づいたらパーティクルを生成
-
-                if (e.distance < 100 && Math.random() < 0.1) { 
-
-                    createEnemyParticle(cx + e.distance * Math.cos(e.angle), cy + e.distance * Math.sin(e.angle));
-
-                }
-
-            });
-
-            enemies = enemies.filter(e => {
-
-                if (e.distance <= 15) {
-
-                    endGame();
-
-                    return false;
-
-                }
-
-                return true;
-
-            });
-
-
-
-            // コンボのリセット判定
-
-            if (comboCount > 0 && performance.now() - lastKillTime > COMBO_RESET_TIME) {
-
-                comboCount = 0;
-
-                comboDisplay.classList.remove("active");
-
-                // コンボ表示が消えるときもヌルッと
-
-                comboDisplay.style.transition = 'opacity 0.5s ease-out, transform 0.5s ease-in';
-
-                comboDisplay.style.opacity = '0';
-
-                comboDisplay.style.transform = 'translateY(20px) scale(0.8) translateZ(15px)'; // 消える時もZ軸を考慮
-
-                setTimeout(() => {
-
-                    comboDisplay.textContent = "";
-
-                    comboDisplay.style.transition = 'opacity 0.3s ease-out, transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
-
-                }, 500); // アニメーション終了後にテキストをクリア
-
-            }
-
-        }
-
-
-
-        function createEnemyParticle(x, y) {
-
-            const particle = document.createElement("div");
-
-            particle.className = "enemy-particle";
-
-            const size = Math.random() * 4 + 2; 
-
-            particle.style.width = particle.style.height = `${size}px`;
-
-            particle.style.left = `${x + (Math.random() - 0.5) * 20}px`; 
-
-            particle.style.top = `${y + (Math.random() - 0.5) * 20}px`; 
-
-            document.body.appendChild(particle);
-
-            setTimeout(() => particle.remove(), 800);
-
-        }
-
-
-
-        function drawRadar() {
-
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-
-
-            // 背景のノイズドット (ミニマルな美しさ)
-
-            for (let i = 0; i < 60; i++) {
-
-                ctx.fillStyle = `rgba(0, 0, 0, ${0.01 + Math.random() * 0.03})`;
-
-                ctx.beginPath();
-
-                ctx.arc(Math.random() * canvas.width, Math.random() * canvas.height, 0.7, 0, 2 * Math.PI);
-
-                ctx.fill();
-
-            }
-
-
-
-            // レーダー円 (ミニマルな美しさ)
-
-            ctx.strokeStyle = "rgba(100, 100, 100, 0.1)";
-
-            ctx.lineWidth = 0.5;
-
-            for (let i = 1; i <= 5; i++) {
-
-                ctx.beginPath();
-
-                ctx.arc(cx, cy, i * 80, 0, 2 * Math.PI);
-
-                ctx.stroke();
-
-            }
-
-
-
-            // プレイヤー中心ドット
-
-            ctx.fillStyle = "#333";
-
-            ctx.beginPath();
-
-            ctx.arc(cx, cy, 4, 0, 2 * Math.PI);
-
-            ctx.fill();
-
-
-
-            // 照準線 (Apple Blue)
-
-            ctx.strokeStyle = "rgba(0, 122, 255, 0.8)"; 
-
-            ctx.lineWidth = 2;
-
-            ctx.beginPath();
-
-            ctx.moveTo(cx, cy);
-
-            ctx.lineTo(cx + 80 * Math.cos(playerAngle), cy + 80 * Math.sin(playerAngle));
-
-            ctx.stroke();
-
-
-
-            // 敵の描画と色/サイズ変更 (Nintendo的なポップな遊び心)
-
-            enemies.forEach(e => {
-
-                const ex = cx + e.distance * Math.cos(e.angle);
-
-                const ey = cy + e.distance * Math.sin(e.angle);
-
-
-
-                let enemyColor = "rgba(0, 122, 255, 0.8)"; // 初期色をApple Blueに
-
-                let enemySize = 5;
-
-                let doBlink = false;
-
-
-
-                if (e.distance < 70) { 
-
-                    enemyColor = "rgba(255, 45, 85, 0.9)"; // Nintendo Red (鮮やかな赤)
-
-                    enemySize = 8 + (70 - e.distance) / 7; 
-
-                    doBlink = (Math.floor(Date.now() / 100) % 2 === 0); // 点滅速度を速く
-
-                } else if (e.distance < 150) { 
-
-                    enemyColor = "rgba(255, 153, 0, 0.9)"; // オレンジ (Googleカラーのイメージ)
-
-                    enemySize = 6 + (150 - e.distance) / 20;
-
-                } else { 
-
-                    enemyColor = "rgba(0, 122, 255, 0.8)"; // Apple Blue
-
-                    enemySize = 5;
-
-                }
-
-
-
-                ctx.fillStyle = doBlink ? "rgba(255, 45, 85, 1)" : enemyColor; 
-
-                ctx.beginPath();
-
-                ctx.arc(ex, ey, enemySize, 0, 2 * Math.PI);
-
-                ctx.fill();
-
-            });
-
-        }
-
-
-
-        function normalizeAngle(angle) {
-
-            return Math.atan2(Math.sin(angle), Math.cos(angle));
-
-        }
-
-
-
-        function gameLoop() {
-
-            if (isGameOver) return;
-
-            updateEnemies();
-
-            drawRadar();
-
-            requestAnimationFrame(gameLoop);
-
-        }
-
-
-
-        function createShootVisual(x, y) {
-
-            const visual = document.createElement("div");
-
-            visual.className = "shoot-visual";
-
-            visual.style.left = `${x}px`;
-
-            visual.style.top = `${y}px`;
-
-            visual.style.width = visual.style.height = `20px`;
-
-            document.body.appendChild(visual);
-
-            setTimeout(() => visual.remove(), 300);
-
-        }
-
-
-
-        function createHitEffect(x, y) {
-
-            const effect = document.createElement("div");
-
-            effect.className = "hit-effect";
-
-            effect.style.left = `${x}px`;
-
-            effect.style.top = `${y}px`;
-
-            effect.style.width = effect.style.height = `40px`; 
-
-            document.body.appendChild(effect);
-
-            setTimeout(() => effect.remove(), 300);
-
-        }
-
-
-
-        function showScorePopup(x, y, value, combo = 0) {
-
-            const popup = document.createElement("div");
-
-            popup.className = "score-popup";
-
-            popup.textContent = `+${value}`;
-
-            if (combo > 1) { 
-
-                popup.textContent += ` (${combo}x)`;
-
-            }
-
-            popup.style.left = `${x}px`;
-
-            popup.style.top = `${y}px`;
-
-            document.body.appendChild(popup);
-
-            setTimeout(() => popup.remove(), 900); 
-
-        }
-
-
-
-        function updateScore(points) {
-
-            score += points;
-
-            scoreDisplay.textContent = score.toString();
-
-        }
-
-
-
-        function endGame() {
-
-            if (isGameOver) return;
-
-            isGameOver = true;
-
-            // ゲームオーバー時の振動 (重く連続的なバイブレーション)
-
-            vibrateDevice([200, 100, 200, 100, 200]); 
-
-            generateSound(200, 0.4, 'square', 0.6); // 低いサウンド
-
-
-
-            if (enemySpawnInterval) clearInterval(enemySpawnInterval);
-
-            finalScore.textContent = `FINAL SCORE: ${score}`;
-
-            gameOverScreen.classList.add("visible");
-
-        }
-
-
-
-
-
-        shootButton.addEventListener("click", () => {
-
-            if (isGameOver || shootCooldown) return;
-
-
-
-            createShootVisual(cx, cy);
-
-            generateSound(880, 0.08, 'sine', 0.4);
-
-            vibrateDevice([20, 10, 20]); // ショット時の振動 (短く鋭い)
-
-
-
-            shootButtonIcon.classList.add('bounce');
-
-            setTimeout(() => {
-
-                shootButtonIcon.classList.remove('bounce');
-
-            }, 150); // アニメーション時間に合わせて調整
-
-
-
-            shootCooldown = true;
-
-            shootButton.classList.add("cooldown");
-
-            shootCooldownBar.style.animation = `cooldownFill ${SHOOT_COOLDOWN_TIME / 1000}s linear forwards`;
-
-
-
-            setTimeout(() => {
-
-                shootCooldown = false;
-
-                shootButton.classList.remove("cooldown");
-
-                shootCooldownBar.style.animation = '';
-
-            }, SHOOT_COOLDOWN_TIME);
-
-
-
-            let hit = false;
-
-            const shootRange = Math.PI / 15;
-
-
-
-            enemies = enemies.filter(e => {
-
-                const diff = Math.abs(normalizeAngle(e.angle - playerAngle));
-
-                if (diff < shootRange && e.distance < 300) {
-
-                    e.health--;
-
-                    if (e.health <= 0) {
-
-                        const ex = cx + e.distance * Math.cos(e.angle);
-
-                        const ey = cy + e.distance * Math.sin(e.angle);
-
-                        createHitEffect(ex, ey);
-
-
-
-                        // コンボシステムの更新
-
-                        const currentTime = performance.now();
-
-                        if (currentTime - lastKillTime < COMBO_RESET_TIME) {
-
-                            comboCount++;
-
-                        } else {
-
-                            comboCount = 1; // 新しいコンボ開始
-
-                        }
-
-                        lastKillTime = currentTime;
-
-
-
-                        // コンボ表示の更新とアニメーション
-
-                        if (comboCount > 1) {
-
-                            comboDisplay.textContent = `${comboCount} COMBO!`;
-
-                            comboDisplay.classList.add("active"); // activeクラスでアニメーション発火
-
-                            // 特定のコンボ数での振動 (短い達成感のある振動)
-
-                            if (comboCount % 3 === 0) { 
-
-                                vibrateDevice([30, 20, 30]); 
-
-                            }
-
-                            // コンボ音階が上がる演出 (例: 250Hz, 300Hz, 350Hz...)
-
-                            generateSound(800 + comboCount * 50, 0.08, 'triangle', 0.6); 
-
-                        } else {
-
-                            comboDisplay.classList.remove("active");
-
-                            // コンボ表示が消えるときもヌルッと
-
-                            comboDisplay.style.transition = 'opacity 0.5s ease-out, transform 0.5s ease-in';
-
-                            comboDisplay.style.opacity = '0';
-
-                            comboDisplay.style.transform = 'translateY(20px) scale(0.8) translateZ(15px)'; // 消える時もZ軸を考慮
-
-                            setTimeout(() => {
-
-                                comboDisplay.textContent = "";
-
-                                comboDisplay.style.transition = 'opacity 0.3s ease-out, transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
-
-                            }, 500); // アニメーション終了後にテキストをクリア
-
-                        }
-
-
-
-
-
-                        let points = 100;
-
-                        // コンボボーナス
-
-                        if (comboCount >= 2) {
-
-                            points = Math.floor(points * (1 + comboCount * 0.2)); 
-
-                        }
-
-                        updateScore(points);
-
-                        showScorePopup(ex, ey, points, comboCount);
-
-                        hit = true;
-
-                        vibrateDevice([40, 30, 40]); // 敵ヒット時の振動 (ショット時よりやや長く)
-
-                        generateSound(1000, 0.1, 'triangle', 0.5);
-
-                        return false;
-
-                    }
-
-                }
-
-                return true;
-
-            });
-
-        });
-
-
-
-        restartButton.addEventListener("click", () => {
-
-            initGame();
-
-        });
-
-
-
-        let enemySpawnInterval;
-
-
-
-        window.onload = () => {
-
-            startScreen.classList.remove('hidden');
-
-        };
-
-
-
-        startScreen.addEventListener('click', requestDeviceOrientationPermissionAndStartGame);
-
-
-
-        window.addEventListener('resize', () => {
-
-            canvas.width = window.innerWidth;
-
-            canvas.height = window.innerHeight;
-
-        });
-
-
-
-    </script>
-
+    <canvas id="radarCanvas"></canvas>
+    <button id="shootButton">
+        <span class="icon">●</span>
+        <div class="cooldown-bar"></div>
+    </button>
+    <div id="scoreDisplay">0</div>
+    <div id="comboDisplay"></div>
+    <div id="gameOverScreen">
+        <h2>GAME OVER</h2>
+        <div id="finalScore">FINAL SCORE: 0</div>
+        <button id="restartButton">RESTART</button>
+    </div>
+
+    <div id="startScreen">
+        <p>TAP TO START</p>
+        <span>(センサーと音声を有効にします)</span>
+    </div>
+
+    <script>
+        const canvas = document.getElementById("radarCanvas");
+        const ctx = canvas.getContext("2d");
+        const shootButton = document.getElementById("shootButton");
+        const shootButtonIcon = shootButton.querySelector('.icon');
+        const shootCooldownBar = shootButton.querySelector('.cooldown-bar');
+        const scoreDisplay = document.getElementById("scoreDisplay");
+        const comboDisplay = document.getElementById("comboDisplay");
+        const gameOverScreen = document.getElementById("gameOverScreen");
+        const finalScore = document.getElementById("finalScore");
+        const restartButton = document.getElementById("restartButton");
+        const startScreen = document.getElementById("startScreen");
+
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        let enemies = [];
+        let playerAngle = 0;
+        // 揺れ補正用の変数
+        let smoothedPlayerAngle = 0;
+        const SMOOTHING_FACTOR = 0.1; // 揺れ補正の強度（0.1は弱め、0.01は強め）
+
+        const cx = canvas.width / 2;
+        const cy = canvas.height / 2;
+        let score = 0;
+        let isGameOver = false;
+        let shootCooldown = false;
+        const SHOOT_COOLDOWN_TIME = 500;
+
+        let comboCount = 0;
+        let lastKillTime = 0;
+        const COMBO_RESET_TIME = 1500;
+
+        let audioContext;
+
+        // 難易度調整用の変数
+        let enemySpawnIntervalId;
+        const INITIAL_SPAWN_INTERVAL = 2500; // 初期出現間隔 (ms)
+        const MIN_SPAWN_INTERVAL = 800; // 最小出現間隔 (ms)
+        const SCORE_FOR_DIFFICULTY_INCREASE = 500; // このスコアごとに難易度が上がる
+        const INTERVAL_DECREMENT = 100; // 難易度上昇ごとの間隔減少量
+        let currentSpawnInterval = INITIAL_SPAWN_INTERVAL; // 現在の敵出現間隔
+
+        const INITIAL_ENEMY_SPEED_BASE = 0.5; // 敵の初期基本速度
+        const ENEMY_SPEED_INCREMENT = 0.05; // 難易度上昇ごとの速度増加量
+        const MAX_ENEMY_SPEED = 1.5; // 敵の最大速度
+
+        const SCORE_FOR_ENEMY_HEALTH_INCREASE = 1500; // このスコアごとに敵のヘルスが上がる
+        const MAX_ENEMY_HEALTH = 3; // 敵の最大ヘルス
+
+        // 車両モーションキュー風ドット用変数
+        let motionCueDots = [];
+        const MAX_MOTION_CUE_DOTS = 10; // 画面に表示するドットの最大数
+        const MOTION_CUE_DOT_SIZE = 6; // ドットのサイズ
+        const MOTION_CUE_INTENSITY_FACTOR = 0.5; // ドットの動きの強度調整
+        let lastDeviceAcceleration = { x: 0, y: 0, z: 0 }; // 前回の加速度データ
+
+        // バイブレーション関数を抽象化
+        function vibrateDevice(pattern) {
+            if (navigator.vibrate) {
+                navigator.vibrate(pattern);
+            }
+        }
+
+        function generateSound(frequency, duration, type = 'sine', volume = 0.5) {
+            if (!audioContext) return;
+            const oscillator = audioContext.createOscillator();
+            const gainNode = audioContext.createGain();
+
+            oscillator.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+
+            oscillator.type = type;
+            oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
+            gainNode.gain.setValueAtTime(volume, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + duration);
+
+            oscillator.start(audioContext.currentTime);
+            oscillator.stop(audioContext.currentTime + duration);
+        }
+
+        function initGame() {
+            enemies = [];
+            score = 0;
+            comboCount = 0;
+            lastKillTime = 0;
+            isGameOver = false;
+            shootCooldown = false;
+            scoreDisplay.textContent = "0";
+            comboDisplay.textContent = "";
+            comboDisplay.classList.remove("active");
+            gameOverScreen.classList.remove("visible");
+            playerAngle = 0;
+            smoothedPlayerAngle = 0; // ゲーム開始時に揺れ補正もリセット
+
+            // 難易度をリセット
+            currentSpawnInterval = INITIAL_SPAWN_INTERVAL;
+            if (enemySpawnIntervalId) clearInterval(enemySpawnIntervalId);
+            enemySpawnIntervalId = setInterval(spawnEnemy, currentSpawnInterval);
+
+            gameLoop();
+        }
+
+        function requestDeviceOrientationPermissionAndStartGame() {
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            }
+
+            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                DeviceOrientationEvent.requestPermission()
+                    .then(permissionState => {
+                        if (permissionState === 'granted') {
+                            window.addEventListener("deviceorientation", handleDeviceOrientation);
+                            // DeviceMotionの権限もリクエスト (iOS 13+ で DeviceMotionEvent.requestPermission が利用可能か確認)
+                            if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+                                DeviceMotionEvent.requestPermission()
+                                    .then(motionPermissionState => {
+                                        if (motionPermissionState === 'granted') {
+                                            window.addEventListener("devicemotion", handleDeviceMotion);
+                                        } else {
+                                            console.warn('DeviceMotionの利用が拒否されました。モーションキューは限定的に動作します。');
+                                        }
+                                        startScreen.classList.add('hidden');
+                                        initGame();
+                                    })
+                                    .catch(error => {
+                                        console.error("DeviceMotionEvent.requestPermission error:", error);
+                                        startScreen.classList.add('hidden');
+                                        initGame();
+                                    });
+                            } else {
+                                // DeviceMotionEvent.requestPermission がない場合は直接リスナーを追加
+                                window.addEventListener("devicemotion", handleDeviceMotion);
+                                startScreen.classList.add('hidden');
+                                initGame();
+                            }
+                        } else {
+                            alert('ジャイロセンサーの利用が拒否されました。ゲームをプレイできません。ブラウザの設定で許可が必要な場合があります。');
+                        }
+                    })
+                    .catch(error => {
+                        console.error("DeviceOrientationEvent.requestPermission error:", error);
+                        alert('ジャイロセンサーの許可リクエスト中にエラーが発生しました。お使いのデバイスが対応しているか確認してください。');
+                    });
+            } else {
+                window.addEventListener("deviceorientation", handleDeviceOrientation);
+                window.addEventListener("devicemotion", handleDeviceMotion); // requestPermission がない場合
+                startScreen.classList.add('hidden');
+                initGame();
+            }
+        }
+
+        // 揺れ補正を適用した handleDeviceOrientation
+        function handleDeviceOrientation(e) {
+            if (e.alpha !== null) {
+                const rawAngle = -e.alpha * Math.PI / 180; // 生の角度データ
+                
+                // 角度の差分を計算し、最短経路で補間するための処理
+                let angleDiff = rawAngle - playerAngle;
+                if (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
+                if (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
+
+                playerAngle += angleDiff; // 現在の角度を更新
+                
+                // ローパスフィルターで滑らかにする
+                smoothedPlayerAngle = smoothedPlayerAngle * (1 - SMOOTHING_FACTOR) + playerAngle * SMOOTHING_FACTOR;
+            }
+        }
+
+        // 車両モーションキュー風UIのためのDeviceMotion処理
+        function handleDeviceMotion(e) {
+            if (e.accelerationIncludingGravity && !isGameOver) {
+                const acc = e.accelerationIncludingGravity;
+                const sensitivity = 0.5; // 加速度に対するドットの移動感度
+                
+                // 加速度の変化量を計算 (ジャークを簡易的に表現)
+                const deltaX = acc.x - lastDeviceAcceleration.x;
+                const deltaY = acc.y - lastDeviceAcceleration.y;
+                const deltaZ = acc.z - lastDeviceAcceleration.z;
+                
+                lastDeviceAcceleration = { x: acc.x, y: acc.y, z: acc.z };
+
+                // 加速度に応じてドットを生成・移動させる
+                // ここではX, Y軸の加速度を主に利用し、反作用的にドットを動かす
+                const moveX = -deltaX * MOTION_CUE_INTENSITY_FACTOR * 5; // X軸の加速度変化を反転して左右に動かす
+                const moveY = deltaY * MOTION_CUE_INTENSITY_FACTOR * 5; // Y軸の加速度変化で上下に動かす
+
+                // ドットの生成と移動
+                if (Math.abs(moveX) > 0.1 || Math.abs(moveY) > 0.1) {
+                    createMotionCueDot(moveX, moveY);
+                }
+            }
+        }
+
+        function createMotionCueDot(moveX, moveY) {
+            const dot = document.createElement("div");
+            dot.className = "motion-cue-dot";
+            const size = MOTION_CUE_DOT_SIZE + Math.random() * 4; // サイズにランダム性
+            dot.style.width = dot.style.height = `${size}px`;
+            
+            // ドットの初期位置は画面の端
+            // 加速度の方向に応じて、ドットが流れてくる方向を調整
+            let startX, startY;
+            const screenPadding = 20; // 画面端からの開始位置のパディング
+
+            if (moveX > 0) { // 左への揺れの場合、ドットは右から
+                startX = window.innerWidth - screenPadding;
+            } else { // 右への揺れの場合、ドットは左から
+                startX = screenPadding;
+            }
+
+            if (moveY > 0) { // 上への揺れの場合、ドットは下から
+                startY = window.innerHeight - screenPadding;
+            } else { // 下への揺れの場合、ドットは上から
+                startY = screenPadding;
+            }
+
+            dot.style.left = `${startX}px`;
+            dot.style.top = `${startY}px`;
+            dot.style.opacity = '1';
+            
+            document.body.appendChild(dot);
+            motionCueDots.push(dot);
+
+            // ドットを加速度に応じて反対方向に移動させるアニメーション
+            // translateX/Yで移動し、徐々に消える
+            const endX = startX + moveX * 10; // 移動量に応じて終点を調整
+            const endY = startY + moveY * 10;
+
+            dot.animate([
+                { transform: `translate(${0}px, ${0}px)`, opacity: 1 },
+                { transform: `translate(${endX - startX}px, ${endY - startY}px)`, opacity: 0 }
+            ], {
+                duration: 500 + Math.random() * 300, // ドットの寿命にランダム性
+                easing: 'ease-out',
+                fill: 'forwards'
+            }).onfinish = () => {
+                dot.remove();
+                motionCueDots = motionCueDots.filter(d => d !== dot);
+            };
+
+            // ドットの数を制限
+            if (motionCueDots.length > MAX_MOTION_CUE_DOTS) {
+                motionCueDots[0].remove();
+                motionCueDots.shift();
+            }
+        }
+
+
+        function spawnEnemy() {
+            if (isGameOver) return;
+            const angle = Math.random() * 2 * Math.PI;
+            const radius = Math.max(canvas.width, canvas.height) / 2 + 50;
+
+            // スコアに応じて敵の速度を調整
+            let currentEnemySpeed = INITIAL_ENEMY_SPEED_BASE + Math.floor(score / SCORE_FOR_DIFFICULTY_INCREASE) * ENEMY_SPEED_INCREMENT;
+            currentEnemySpeed = Math.min(currentEnemySpeed, MAX_ENEMY_SPEED); // 最大速度を制限
+
+            // スコアに応じて敵のヘルスを調整
+            let enemyHealth = 1;
+            if (score >= SCORE_FOR_ENEMY_HEALTH_INCREASE) {
+                enemyHealth = 1 + Math.floor(score / SCORE_FOR_DIFFICULTY_INCREASE);
+                enemyHealth = Math.min(enemyHealth, MAX_ENEMY_HEALTH); // 最大ヘルスを制限
+            }
+
+            enemies.push({
+                angle: angle,
+                distance: radius,
+                speed: currentEnemySpeed + Math.random() * 0.3, // 基本速度にランダム要素を加える
+                health: enemyHealth, // ヘルスを設定
+                isApproaching: false
+            });
+        }
+
+        function updateEnemies() {
+            enemies.forEach(e => {
+                e.distance -= e.speed;
+                if (e.distance < 150 && !e.isApproaching) {
+                    e.isApproaching = true;
+                    vibrateDevice([30, 20, 30]);
+                    generateSound(440, 0.05, 'sawtooth', 0.3);
+                }
+                if (e.distance < 100 && Math.random() < 0.1) {
+                    createEnemyParticle(cx + e.distance * Math.cos(e.angle), cy + e.distance * Math.sin(e.angle));
+                }
+            });
+            enemies = enemies.filter(e => {
+                if (e.distance <= 15) {
+                    endGame();
+                    return false;
+                }
+                return true;
+            });
+
+            if (comboCount > 0 && performance.now() - lastKillTime > COMBO_RESET_TIME) {
+                comboCount = 0;
+                comboDisplay.classList.remove("active");
+                comboDisplay.style.transition = 'opacity 0.5s ease-out, transform 0.5s ease-in';
+                comboDisplay.style.opacity = '0';
+                comboDisplay.style.transform = 'translateY(20px) scale(0.8) translateZ(15px)';
+                setTimeout(() => {
+                    comboDisplay.textContent = "";
+                    comboDisplay.style.transition = 'opacity 0.3s ease-out, transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+                }, 500);
+            }
+        }
+
+        function createEnemyParticle(x, y) {
+            const particle = document.createElement("div");
+            particle.className = "enemy-particle";
+            const size = Math.random() * 4 + 2;
+            particle.style.width = particle.style.height = `${size}px`;
+            particle.style.left = `${x + (Math.random() - 0.5) * 20}px`;
+            particle.style.top = `${y + (Math.random() - 0.5) * 20}px`;
+            document.body.appendChild(particle);
+            setTimeout(() => particle.remove(), 800);
+        }
+
+        function drawRadar() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            for (let i = 0; i < 60; i++) {
+                ctx.fillStyle = `rgba(0, 0, 0, ${0.01 + Math.random() * 0.03})`;
+                ctx.beginPath();
+                ctx.arc(Math.random() * canvas.width, Math.random() * canvas.height, 0.7, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+
+            ctx.strokeStyle = "rgba(100, 100, 100, 0.1)";
+            ctx.lineWidth = 0.5;
+            for (let i = 1; i <= 5; i++) {
+                ctx.beginPath();
+                ctx.arc(cx, cy, i * 80, 0, 2 * Math.PI);
+                ctx.stroke();
+            }
+
+            ctx.fillStyle = "#333";
+            ctx.beginPath();
+            ctx.arc(cx, cy, 4, 0, 2 * Math.PI);
+            ctx.fill();
+
+            // 照準線 (smoothedPlayerAngle を使用)
+            ctx.strokeStyle = "rgba(0, 122, 255, 0.8)";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.lineTo(cx + 80 * Math.cos(smoothedPlayerAngle), cy + 80 * Math.sin(smoothedPlayerAngle));
+            ctx.stroke();
+
+            enemies.forEach(e => {
+                const ex = cx + e.distance * Math.cos(e.angle);
+                const ey = cy + e.distance * Math.sin(e.angle);
+
+                let enemyColor = "rgba(0, 122, 255, 0.8)";
+                let enemySize = 5;
+                let doBlink = false;
+
+                if (e.distance < 70) {
+                    enemyColor = "rgba(255, 45, 85, 0.9)";
+                    enemySize = 8 + (70 - e.distance) / 7;
+                    doBlink = (Math.floor(Date.now() / 100) % 2 === 0);
+                } else if (e.distance < 150) {
+                    enemyColor = "rgba(255, 153, 0, 0.9)";
+                    enemySize = 6 + (150 - e.distance) / 20;
+                } else {
+                    enemyColor = "rgba(0, 122, 255, 0.8)";
+                    enemySize = 5;
+                }
+
+                ctx.fillStyle = doBlink ? "rgba(255, 45, 85, 1)" : enemyColor;
+                ctx.beginPath();
+                ctx.arc(ex, ey, enemySize, 0, 2 * Math.PI);
+                ctx.fill();
+            });
+        }
+
+        function normalizeAngle(angle) {
+            return Math.atan2(Math.sin(angle), Math.cos(angle));
+        }
+
+        function gameLoop() {
+            if (isGameOver) return;
+            updateEnemies();
+            drawRadar();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function createShootVisual(x, y) {
+            const visual = document.createElement("div");
+            visual.className = "shoot-visual";
+            visual.style.left = `${x}px`;
+            visual.style.top = `${y}px`;
+            visual.style.width = visual.style.height = `20px`;
+            document.body.appendChild(visual);
+            setTimeout(() => visual.remove(), 300);
+        }
+
+        function createHitEffect(x, y) {
+            const effect = document.createElement("div");
+            effect.className = "hit-effect";
+            effect.style.left = `${x}px`;
+            effect.style.top = `${y}px`;
+            effect.style.width = effect.style.height = `40px`;
+            document.body.appendChild(effect);
+            setTimeout(() => effect.remove(), 300);
+        }
+
+        function showScorePopup(x, y, value, combo = 0) {
+            const popup = document.createElement("div");
+            popup.className = "score-popup";
+            popup.textContent = `+${value}`;
+            if (combo > 1) {
+                popup.textContent += ` (${combo}x)`;
+            }
+            popup.style.left = `${x}px`;
+            popup.style.top = `${y}px`;
+            document.body.appendChild(popup);
+            setTimeout(() => popup.remove(), 900);
+        }
+
+        // スコア更新時に難易度調整ロジックを追加
+        function updateScore(points) {
+            score += points;
+            scoreDisplay.textContent = score.toString();
+
+            // 難易度調整ロジック
+            const newInterval = INITIAL_SPAWN_INTERVAL - Math.floor(score / SCORE_FOR_DIFFICULTY_INCREASE) * INTERVAL_DECREMENT;
+            if (newInterval < currentSpawnInterval && newInterval >= MIN_SPAWN_INTERVAL) {
+                currentSpawnInterval = newInterval;
+                clearInterval(enemySpawnIntervalId);
+                enemySpawnIntervalId = setInterval(spawnEnemy, currentSpawnInterval);
+                console.log(`難易度上昇！敵の出現間隔: ${currentSpawnInterval}ms`); // デバッグ用
+
+                generateSound(700, 0.05, 'sawtooth', 0.4); // 少し高めの音
+                vibrateDevice([50, 30, 50]); // 短い振動
+            }
+        }
+
+        function endGame() {
+            if (isGameOver) return;
+            isGameOver = true;
+            vibrateDevice([200, 100, 200, 100, 200]);
+            generateSound(200, 0.4, 'square', 0.6);
+
+            if (enemySpawnIntervalId) clearInterval(enemySpawnIntervalId); // 正しい変数名に修正
+            finalScore.textContent = `FINAL SCORE: ${score}`;
+            gameOverScreen.classList.add("visible");
+        }
+
+        shootButton.addEventListener("click", () => {
+            if (isGameOver || shootCooldown) return;
+
+            createShootVisual(cx, cy);
+            generateSound(880, 0.08, 'sine', 0.4);
+            vibrateDevice([20, 10, 20]);
+
+            shootButtonIcon.classList.add('bounce');
+            setTimeout(() => {
+                shootButtonIcon.classList.remove('bounce');
+            }, 150);
+
+            shootCooldown = true;
+            shootButton.classList.add("cooldown");
+            shootCooldownBar.style.animation = `cooldownFill ${SHOOT_COOLDOWN_TIME / 1000}s linear forwards`;
+
+            setTimeout(() => {
+                shootCooldown = false;
+                shootButton.classList.remove("cooldown");
+                shootCooldownBar.style.animation = '';
+            }, SHOOT_COOLDOWN_TIME);
+
+            let hit = false;
+            const shootRange = Math.PI / 15;
+
+            enemies = enemies.filter(e => {
+                const diff = Math.abs(normalizeAngle(e.angle - smoothedPlayerAngle)); // smoothedPlayerAngle を使用
+                if (diff < shootRange && e.distance < 300) {
+                    e.health--;
+                    if (e.health <= 0) {
+                        const ex = cx + e.distance * Math.cos(e.angle);
+                        const ey = cy + e.distance * Math.sin(e.angle);
+                        createHitEffect(ex, ey);
+
+                        const currentTime = performance.now();
+                        if (currentTime - lastKillTime < COMBO_RESET_TIME) {
+                            comboCount++;
+                        } else {
+                            comboCount = 1;
+                        }
+                        lastKillTime = currentTime;
+
+                        if (comboCount > 1) {
+                            comboDisplay.textContent = `${comboCount} COMBO!`;
+                            comboDisplay.classList.add("active");
+                            if (comboCount % 3 === 0) {
+                                vibrateDevice([30, 20, 30]);
+                            }
+                            generateSound(800 + comboCount * 50, 0.08, 'triangle', 0.6);
+                        } else {
+                            // コンボがリセットされた場合に備えて非表示に
+                            comboDisplay.classList.remove("active");
+                            comboDisplay.style.transition = 'opacity 0.5s ease-out, transform 0.5s ease-in';
+                            comboDisplay.style.opacity = '0';
+                            comboDisplay.style.transform = 'translateY(20px) scale(0.8) translateZ(15px)';
+                            setTimeout(() => {
+                                comboDisplay.textContent = "";
+                                comboDisplay.style.transition = 'opacity 0.3s ease-out, transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+                            }, 500);
+                        }
+
+                        let points = 100;
+                        if (comboCount >= 2) {
+                            points = Math.floor(points * (1 + comboCount * 0.2));
+                        }
+                        updateScore(points);
+                        showScorePopup(ex, ey, points, comboCount);
+                        hit = true;
+                        vibrateDevice([40, 30, 40]);
+                        generateSound(1000, 0.1, 'triangle', 0.5);
+                        return false;
+                    }
+                }
+                return true;
+            });
+        });
+
+        restartButton.addEventListener("click", () => {
+            initGame();
+        });
+
+        window.onload = () => {
+            startScreen.classList.remove('hidden');
+        };
+
+        startScreen.addEventListener('click', requestDeviceOrientationPermissionAndStartGame);
+
+        window.addEventListener('resize', () => {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+        });
+    </script>
 </body>
-
 </html>
