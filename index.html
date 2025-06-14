@@ -1,123 +1,40 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>触覚×音のリアル感サンプル</title>
-<style>
-  body {
-    height: 100vh;
-    margin: 0;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    font-family: sans-serif;
-    user-select: none;
-    background: #f0f0f0;
-    touch-action: none;
-  }
-  #info {
-    position: fixed;
-    top: 20px;
-    font-size: 18px;
-  }
-  #touchArea {
-    width: 90vw;
-    height: 70vh;
-    background: white;
-    border-radius: 12px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    font-size: 24px;
-    color: #333;
-    user-select: none;
-  }
-</style>
+  <meta charset="UTF-8" />
+  <title>振動同期サンプル</title>
 </head>
 <body>
-  <div id="info">スワイプしてみて！速度に応じて振動と音が変わるよ</div>
-  <div id="touchArea">ここを触ってスワイプ</div>
+  <video id="movie" width="640" controls>
+    <source src="your_movie.mp4" type="video/mp4" />
+    お使いのブラウザは動画タグに対応していません。
+  </video>
 
-<script>
-  const touchArea = document.getElementById('touchArea');
-  let lastTime = 0;
-  let lastX = 0;
-  let lastY = 0;
+  <script>
+    const video = document.getElementById('movie');
 
-  // Web Audio API初期化
-  const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  const oscillator = audioCtx.createOscillator();
-  const gainNode = audioCtx.createGain();
+    // 振動を起こすタイミング（秒）とパターンを配列で管理
+    const vibrationEvents = [
+      { time: 2.5, pattern: [100, 50, 100] },  // 2.5秒で振動パターン開始
+      { time: 5.0, pattern: [200] },           // 5秒で強めの単発振動
+      { time: 8.0, pattern: [50, 30, 50, 30, 50] } // 8秒で連続パルス振動
+    ];
 
-  oscillator.type = 'square'; // ザラザラ感出すならsquare波がいい感じ
-  oscillator.frequency.setValueAtTime(100, audioCtx.currentTime); // 初期周波数
-  gainNode.gain.setValueAtTime(0, audioCtx.currentTime); // 最初は無音
+    // 振動イベントの処理済み管理
+    let triggeredEvents = new Set();
 
-  oscillator.connect(gainNode);
-  gainNode.connect(audioCtx.destination);
-  oscillator.start();
+    video.addEventListener('timeupdate', () => {
+      const currentTime = video.currentTime;
 
-  // 振動パターン関数（強さ0-1, 周波数Hz）
-  function vibratePattern(strength, frequency) {
-    if (!navigator.vibrate) return;
-    // 振動時間と休止時間を交互に作ることで周波数を表現
-    const duration = 10; // 1つの振動単位(ms)
-    const patternLength = 10; // パターンの繰り返し数
-    const onDuration = duration * strength; // 強さに応じて振動時間を調整
-    const offDuration = duration - onDuration;
-    let pattern = [];
-    for(let i=0; i<patternLength; i++) {
-      pattern.push(onDuration, offDuration);
-    }
-    navigator.vibrate(pattern);
-  }
-
-  touchArea.addEventListener('touchstart', (e) => {
-    lastTime = e.timeStamp;
-    const t = e.touches[0];
-    lastX = t.clientX;
-    lastY = t.clientY;
-    if(audioCtx.state === 'suspended') audioCtx.resume();
-  });
-
-  touchArea.addEventListener('touchmove', (e) => {
-    const t = e.touches[0];
-    const now = e.timeStamp;
-    const dx = t.clientX - lastX;
-    const dy = t.clientY - lastY;
-    const dt = now - lastTime;
-
-    if (dt === 0) return;
-
-    // スワイプ速度(px/ms)
-    const speed = Math.sqrt(dx*dx + dy*dy) / dt;
-
-    // 振動強さはspeedを0~1に正規化（max速度は0.8くらいに設定）
-    const strength = Math.min(speed / 0.8, 1);
-
-    // 周波数は低速で50Hz〜高速で300Hzくらいまで変化
-    const frequency = 50 + strength * 250;
-
-    // 振動パターン実行
-    vibratePattern(strength, frequency);
-
-    // 音の音量と周波数を変化
-    gainNode.gain.setTargetAtTime(strength * 0.2, audioCtx.currentTime, 0.01);
-    oscillator.frequency.setTargetAtTime(frequency, audioCtx.currentTime, 0.01);
-
-    lastX = t.clientX;
-    lastY = t.clientY;
-    lastTime = now;
-  });
-
-  touchArea.addEventListener('touchend', (e) => {
-    // 振動停止
-    navigator.vibrate(0);
-    // 音消す
-    gainNode.gain.setTargetAtTime(0, audioCtx.currentTime, 0.1);
-  });
-</script>
+      vibrationEvents.forEach(event => {
+        if (!triggeredEvents.has(event.time) && currentTime >= event.time) {
+          if (navigator.vibrate) {
+            navigator.vibrate(event.pattern);
+          }
+          triggeredEvents.add(event.time);
+        }
+      });
+    });
+  </script>
 </body>
 </html>
