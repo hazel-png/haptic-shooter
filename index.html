@@ -25,19 +25,108 @@
         }
 
         #radarCanvas {
-            width: 100vw;
-            height: 100vh;
+            /* width: 100vw; */ /* ここを削除またはコメントアウト */
+            /* height: 100vh; */ /* ここを削除またはコメントアウト */
             touch-action: none; /* ピンチズームやパンを無効化 */
             display: block;
             position: absolute;
             top: 0;
             left: 0;
             z-index: 1;
-            /* background: radial-gradient(circle at center, rgba(100, 100, 100, 0.03) 0%, rgba(0, 0, 0, 0) 70%); */ /* 背景のグラデーションを削除 */
+            background: radial-gradient(circle at center, rgba(100, 100, 100, 0.03) 0%, rgba(0, 0, 0, 0) 70%);
             transform: translateZ(-100px);
         }
 
-        /* Shootボタン関連のスタイルは不要になるため削除 */
+        #shootButton {
+            position: fixed;
+            bottom: 3.5vh; /* 調整 */
+            left: 50%;
+            transform-style: preserve-3d;
+            transform: translateX(-50%) translateZ(50px);
+            width: 85%;
+            max-width: 420px; /* 調整 */
+            height: clamp(60px, 12vw, 75px); /* 調整 */
+            border-radius: 38px;
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(20px) saturate(1.2);
+            -webkit-backdrop-filter: blur(20px) saturate(1.2);
+            border: 1px solid rgba(255, 255, 255, 0.7);
+            border-bottom-color: rgba(255, 255, 255, 0.3);
+            border-right-color: rgba(255, 255, 255, 0.3);
+            color: #555;
+            font-size: clamp(1.2rem, 4.5vw, 1.8rem);
+            font-weight: 600;
+            box-shadow:
+                0 25px 50px rgba(0, 0, 0, 0.25),
+                0 0 0 1.5px rgba(255, 255, 255, 0.95) inset,
+                0 0 0 3px rgba(255, 255, 255, 0.6) inset;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+            cursor: pointer;
+            outline: none;
+            z-index: 10;
+            overflow: hidden;
+        }
+
+        #shootButton .icon {
+            font-size: clamp(1.8rem, 6vw, 2.8rem);
+            line-height: 1;
+            color: rgba(0, 122, 255, 0.8);
+            transition: transform 0.1s ease-out, color 0.1s ease-out;
+            transform: translateZ(8px);
+        }
+
+        #shootButton:not(.cooldown):active {
+            transform: translateX(-50%) translateZ(45px) scale(0.97);
+            box-shadow:
+                0 10px 20px rgba(0, 0, 0, 0.15),
+                0 0 0 1px rgba(255, 255, 255, 0.85) inset,
+                0 0 0 2px rgba(255, 255, 255, 0.5) inset;
+        }
+
+        #shootButton:not(.cooldown) .icon.bounce {
+            animation: shootButtonBounce 0.15s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards;
+            color: rgba(0, 122, 255, 1);
+        }
+
+        @keyframes shootButtonBounce {
+            0% { transform: scale(1) translateZ(8px); }
+            50% { transform: scale(1.1) translateZ(12px); }
+            100% { transform: scale(1) translateZ(8px); }
+        }
+
+        #shootButton.cooldown {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.3);
+            color: rgba(100, 100, 100, 0.5);
+            box-shadow: none;
+            cursor: not-allowed;
+            transform: translateX(-50%) translateZ(48px);
+        }
+
+        #shootButton.cooldown .icon {
+            color: rgba(100, 100, 100, 0.5);
+        }
+
+        #shootButton .cooldown-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 5px;
+            background: linear-gradient(90deg, rgba(0, 122, 255, 0.8), rgba(0, 198, 255, 0.8));
+            transform-origin: left;
+            animation: cooldownFill linear forwards;
+            transform: translateZ(2px);
+        }
+
+        @keyframes cooldownFill {
+            from { transform: scaleX(0) translateZ(2px); }
+            to { transform: scaleX(1) translateZ(2px); }
+        }
 
         .shoot-visual {
             position: absolute;
@@ -135,8 +224,8 @@
 
         #scoreDisplay {
             position: fixed;
-            top: 2.5vh;
-            left: 4vw;
+            top: 2.5vh; /* 調整 */
+            left: 4vw; /* 調整 */
             font-size: clamp(2rem, 8vw, 3.5rem);
             font-weight: 700;
             color: #333;
@@ -148,8 +237,8 @@
 
         #comboDisplay {
             position: fixed;
-            top: 9vh;
-            left: 4vw;
+            top: 9vh; /* 調整 */
+            left: 4vw; /* 調整 */
             font-size: clamp(1.5rem, 6vw, 2.5rem);
             font-weight: 700;
             color: rgba(0, 122, 255, 1);
@@ -208,7 +297,7 @@
 
         #finalScore {
             font-size: clamp(2rem, 8vw, 4rem);
-            margin-bottom: 5vh;
+            margin-bottom: 5vh; /* 調整 */
             color: rgba(0, 122, 255, 1);
             text-shadow: 0 0 15px rgba(0, 123, 255, 0.4);
             font-family: inherit;
@@ -217,7 +306,7 @@
         }
 
         #restartButton {
-            padding: 1.8vh 4.5vw;
+            padding: 1.8vh 4.5vw; /* 調整 */
             background: rgba(255, 255, 255, 0.5);
             border: 1px solid rgba(255, 255, 255, 0.9);
             border-bottom-color: rgba(255, 255, 255, 0.5);
@@ -278,7 +367,7 @@
             font-weight: 700;
             color: #f0f0f0;
             transform: translateZ(8px);
-            margin-bottom: 3.5vh;
+            margin-bottom: 3.5vh; /* 調整 */
         }
 
         #startScreen span {
@@ -291,6 +380,10 @@
 </head>
 <body>
     <canvas id="radarCanvas"></canvas>
+    <button id="shootButton">
+        <span class="icon">●</span>
+        <div class="cooldown-bar"></div>
+    </button>
     <div id="scoreDisplay">0</div>
     <div id="comboDisplay"></div>
     <div id="gameOverScreen">
@@ -307,9 +400,9 @@
     <script>
         const canvas = document.getElementById("radarCanvas");
         const ctx = canvas.getContext("2d");
-        // const shootButton = document.getElementById("shootButton"); // 削除
-        // const shootButtonIcon = shootButton.querySelector('.icon'); // 削除
-        // const shootCooldownBar = shootButton.querySelector('.cooldown-bar'); // 削除
+        const shootButton = document.getElementById("shootButton");
+        const shootButtonIcon = shootButton.querySelector('.icon');
+        const shootCooldownBar = shootButton.querySelector('.cooldown-bar');
         const scoreDisplay = document.getElementById("scoreDisplay");
         const comboDisplay = document.getElementById("comboDisplay");
         const gameOverScreen = document.getElementById("gameOverScreen");
@@ -318,7 +411,7 @@
         const startScreen = document.getElementById("startScreen");
 
         let enemies = [];
-        let deviceOrientationOffset = 0; // デバイスの回転量
+        let playerAngle = 0;
         let cx; // Canvasの中心座標は動的に設定
         let cy; // Canvasの中心座標は動的に設定
         let score = 0;
@@ -375,7 +468,7 @@
             comboDisplay.textContent = "";
             comboDisplay.classList.remove("active");
             gameOverScreen.classList.remove("visible");
-            deviceOrientationOffset = 0; // リセット
+            playerAngle = 0;
             if (enemySpawnInterval) clearInterval(enemySpawnInterval);
             enemySpawnInterval = setInterval(spawnEnemy, 2500);
             gameLoop();
@@ -393,8 +486,6 @@
                             window.addEventListener("deviceorientation", handleDeviceOrientation);
                             startScreen.classList.add('hidden');
                             initGame();
-                            // ゲーム開始時に画面クリックイベントリスナーを追加
-                            canvas.addEventListener("click", handleShoot);
                         } else {
                             alert('ジャイロセンサーの利用が拒否されました。ゲームをプレイできません。ブラウザの設定で許可が必要な場合があります。');
                         }
@@ -407,14 +498,12 @@
                 window.addEventListener("deviceorientation", handleDeviceOrientation);
                 startScreen.classList.add('hidden');
                 initGame();
-                // ゲーム開始時に画面クリックイベントリスナーを追加
-                canvas.addEventListener("click", handleShoot);
             }
         }
 
         function handleDeviceOrientation(e) {
             if (e.alpha !== null) {
-                deviceOrientationOffset = -e.alpha * Math.PI / 180;
+                playerAngle = -e.alpha * Math.PI / 180;
             }
         }
 
@@ -423,7 +512,7 @@
             const angle = Math.random() * 2 * Math.PI;
             const radius = Math.max(window.innerWidth, window.innerHeight) / 2 + 50;
             enemies.push({
-                angle: angle, // 敵の絶対的な角度
+                angle: angle,
                 distance: radius,
                 speed: 0.5 + Math.random() * 0.3,
                 health: 1,
@@ -440,9 +529,7 @@
                     generateSound(440, 0.05, 'sawtooth', 0.3);
                 }
                 if (e.distance < 100 && Math.random() < 0.1) {
-                    const ex = cx + e.distance * Math.cos(e.angle);
-                    const ey = cy + e.distance * Math.sin(e.angle);
-                    createEnemyParticle(ex, ey);
+                    createEnemyParticle(cx + e.distance * Math.cos(e.angle), cy + e.distance * Math.sin(e.angle));
                 }
             });
             enemies = enemies.filter(e => {
@@ -480,72 +567,36 @@
         function drawRadar() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // キャンバス全体をデバイスの回転量だけ逆方向に回転させる
-            ctx.save();
-            ctx.translate(cx, cy);
-            ctx.rotate(-deviceOrientationOffset);
-            ctx.translate(-cx, -cy);
+            for (let i = 0; i < 60; i++) {
+                ctx.fillStyle = `rgba(0, 0, 0, ${0.01 + Math.random() * 0.03})`;
+                ctx.beginPath();
+                ctx.arc(Math.random() * canvas.width, Math.random() * canvas.height, 0.7, 0, 2 * Math.PI);
+                ctx.fill();
+            }
 
-            // グリッド線を描画
             ctx.strokeStyle = "rgba(100, 100, 100, 0.1)";
             ctx.lineWidth = 0.5;
-
-            const gridSize = 50; // グリッドのセルサイズ
-            const maxRadius = Math.max(canvas.width, canvas.height) / 2 + 100; // 画面外まで描画
-
-            // 縦のグリッド線
-            for (let x = cx % gridSize; x < canvas.width; x += gridSize) {
-                ctx.beginPath();
-                ctx.moveTo(x, 0);
-                ctx.lineTo(x, canvas.height);
-                ctx.stroke();
-            }
-            for (let x = cx % gridSize - gridSize; x >= 0; x -= gridSize) {
-                ctx.beginPath();
-                ctx.moveTo(x, 0);
-                ctx.lineTo(x, canvas.height);
-                ctx.stroke();
-            }
-
-            // 横のグリッド線
-            for (let y = cy % gridSize; y < canvas.height; y += gridSize) {
-                ctx.beginPath();
-                ctx.moveTo(0, y);
-                ctx.lineTo(canvas.width, y);
-                ctx.stroke();
-            }
-            for (let y = cy % gridSize - gridSize; y >= 0; y -= gridSize) {
-                ctx.beginPath();
-                ctx.moveTo(0, y);
-                ctx.lineTo(canvas.width, y);
-                ctx.stroke();
-            }
-
-            // レーダーの円は引き続き描画
             for (let i = 1; i <= 5; i++) {
                 ctx.beginPath();
                 ctx.arc(cx, cy, i * 80, 0, 2 * Math.PI);
                 ctx.stroke();
             }
 
-            // プレイヤー（中心の点）
             ctx.fillStyle = "#333";
             ctx.beginPath();
             ctx.arc(cx, cy, 4, 0, 2 * Math.PI);
             ctx.fill();
 
-            // プレイヤーの照準線は常に上方向（0ラジアン）を指す
             ctx.strokeStyle = "rgba(0, 122, 255, 0.8)";
             ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.moveTo(cx, cy);
-            ctx.lineTo(cx + 80 * Math.cos(-Math.PI / 2), cy + 80 * Math.sin(-Math.PI / 2)); // 真上を指すように-PI/2
+            ctx.lineTo(cx + 80 * Math.cos(playerAngle), cy + 80 * Math.sin(playerAngle));
             ctx.stroke();
 
             enemies.forEach(e => {
-                const relativeAngle = e.angle - deviceOrientationOffset;
-                const ex = cx + e.distance * Math.cos(relativeAngle);
-                const ey = cy + e.distance * Math.sin(relativeAngle);
+                const ex = cx + e.distance * Math.cos(e.angle);
+                const ey = cy + e.distance * Math.sin(e.angle);
                 let enemyColor = "rgba(0, 122, 255, 0.8)";
                 let enemySize = 5;
                 let doBlink = false;
@@ -565,8 +616,6 @@
                 ctx.arc(ex, ey, enemySize, 0, 2 * Math.PI);
                 ctx.fill();
             });
-
-            ctx.restore(); // 保存した描画状態を復元（回転を解除）
         }
 
         function normalizeAngle(angle) {
@@ -626,38 +675,34 @@
             if (enemySpawnInterval) clearInterval(enemySpawnInterval);
             finalScore.textContent = `FINAL SCORE: ${score}`;
             gameOverScreen.classList.add("visible");
-            // ゲームオーバー時にクリックイベントリスナーを削除
-            canvas.removeEventListener("click", handleShoot);
         }
 
-        function handleShoot() {
+        shootButton.addEventListener("click", () => {
             if (isGameOver || shootCooldown) return;
-            createShootVisual(cx, cy); // プレイヤーは固定なので、中心から撃つ
+            createShootVisual(cx, cy);
             generateSound(880, 0.08, 'sine', 0.4);
             vibrateDevice([20, 10, 20]);
-            
+            shootButtonIcon.classList.add('bounce');
+            setTimeout(() => {
+                shootButtonIcon.classList.remove('bounce');
+            }, 150);
             shootCooldown = true;
-            // shootButtonのクラスやアニメーションは不要になる
-            // shootButton.classList.add("cooldown"); 
-            // shootCooldownBar.style.animation = `cooldownFill ${SHOOT_COOLDOWN_TIME / 1000}s linear forwards`;
-            
+            shootButton.classList.add("cooldown");
+            shootCooldownBar.style.animation = `cooldownFill ${SHOOT_COOLDOWN_TIME / 1000}s linear forwards`;
             setTimeout(() => {
                 shootCooldown = false;
-                // shootButton.classList.remove("cooldown");
-                // shootCooldownBar.style.animation = '';
+                shootButton.classList.remove("cooldown");
+                shootCooldownBar.style.animation = '';
             }, SHOOT_COOLDOWN_TIME);
-
-            const shootAngle = -Math.PI / 2; // プレイヤーの照準は常に真上（-PI/2）
+            let hit = false;
             const shootRange = Math.PI / 15;
             enemies = enemies.filter(e => {
-                const relativeEnemyAngle = normalizeAngle(e.angle - deviceOrientationOffset);
-                const diff = Math.abs(normalizeAngle(relativeEnemyAngle - shootAngle));
-
+                const diff = Math.abs(normalizeAngle(e.angle - playerAngle));
                 if (diff < shootRange && e.distance < 300) {
                     e.health--;
                     if (e.health <= 0) {
-                        const ex = cx + e.distance * Math.cos(e.angle); // ここは敵の絶対角度
-                        const ey = cy + e.distance * Math.sin(e.angle); // ここは敵の絶対角度
+                        const ex = cx + e.distance * Math.cos(e.angle);
+                        const ey = cy + e.distance * Math.sin(e.angle);
                         createHitEffect(ex, ey);
                         const currentTime = performance.now();
                         if (currentTime - lastKillTime < COMBO_RESET_TIME) {
@@ -689,6 +734,7 @@
                         }
                         updateScore(points);
                         showScorePopup(ex, ey, points, comboCount);
+                        hit = true;
                         vibrateDevice([40, 30, 40]);
                         generateSound(1000, 0.1, 'triangle', 0.5);
                         return false;
@@ -696,11 +742,10 @@
                 }
                 return true;
             });
-        }
+        });
 
         restartButton.addEventListener("click", () => {
             initGame();
-            canvas.addEventListener("click", handleShoot); // ゲームリスタート時にクリックイベントリスナーを再追加
         });
 
         let enemySpawnInterval;
