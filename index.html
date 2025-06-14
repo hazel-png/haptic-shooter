@@ -44,9 +44,10 @@
             border-radius: 50%;
             z-index: 2;
             opacity: 0.8;
-            transition: transform 0.05s linear; /* 慣性表現のために、ここでのtransitionは短くか削除 */
+            /* JavaScriptでtransformを直接操作するため、transitionはここでは不要または非常に短く設定 */
             box-shadow: 0 0 8px rgba(0, 122, 255, 0.3);
         }
+        /* ドットの初期位置（画面の四隅） */
         #dotTopLeft { top: 20px; left: 20px; }
         #dotTopRight { top: 20px; right: 20px; }
         #dotBottomLeft { bottom: 20px; left: 20px; }
@@ -369,7 +370,6 @@
             opacity: 0.85;
             color: #ccc;
         }
-
     </style>
 </head>
 <body>
@@ -420,6 +420,9 @@
 
         let enemies = [];
         let playerAngle = 0;
+        let smoothedPlayerAngle = 0; // 揺れ補正後の滑らかな照準角度
+        const SMOOTHING_FACTOR = 0.1; // 揺れ補正の強度（0.1は弱め、0.01は強め）
+
         let cx = canvas.width / 2; // リサイズ対応のためletに変更
         let cy = canvas.height / 2; // リサイズ対応のためletに変更
         let score = 0;
@@ -432,21 +435,35 @@
         const COMBO_RESET_TIME = 1500;
 
         let audioContext;
+        let enemySpawnIntervalId; // setIntervalのIDを保持する変数
 
-        // センサーデータのための変数
+        // センサーデータのための変数 (車両モーションキュー用)
         let lastAcceleration = { x: 0, y: 0, z: 0 };
         let lastRotationRate = { alpha: 0, beta: 0, gamma: 0 };
 
-        // ローパスフィルターと慣性表現のための変数
+        // ローパスフィルターと慣性表現のための変数 (車両モーションキュー用)
         let filteredAccX = 0, filteredAccY = 0;
         let currentDotOffsetX = 0, currentDotOffsetY = 0;
         const LOW_PASS_ALPHA = 0.1; // ローパスフィルターの係数 (0.0 - 1.0, 小さいほど滑らか)
         const INERTIA_SMOOTHING = 0.15; // 慣性表現の係数 (0.0 - 1.0, 小さいほど慣性が強い)
 
-        // 感度調整のための定数
+        // 感度調整のための定数 (車両モーションキュー用)
         const BASE_SENSITIVITY = 8; // 基本感度
         const BOOST_THRESHOLD = 0.5; // 増幅を開始する加速度のしきい値 (m/s^2)
         const BOOST_FACTOR = 1.5; // しきい値を超えた場合の増幅倍率
+
+        // 難易度調整のための定数
+        const INITIAL_SPAWN_INTERVAL = 2500; // 初期出現間隔 (ms)
+        const MIN_SPAWN_INTERVAL = 800; // 最小出現間隔 (ms)
+        const SCORE_FOR_DIFFICULTY_INCREASE = 500; // このスコアごとに難易度が上がる
+        const INTERVAL_DECREMENT = 100; // 難易度上昇ごとの間隔減少量
+
+        const INITIAL_ENEMY_SPEED_BASE = 0.5; // 敵の初期基本速度
+        const ENEMY_SPEED_INCREMENT = 0.05; // 難易度上昇ごとの速度増加量
+        const MAX_ENEMY_SPEED = 1.5; // 敵の最大速度
+
+        const SCORE_FOR_ENEMY_HEALTH_INCREASE = 1500; // このスコアごとに敵のヘルスが上がる
+        const MAX_ENEMY_HEALTH = 3; // 敵の最大ヘルス
 
         // バイブレーション関数を抽象化
         function vibrateDevice(pattern) {
@@ -483,9 +500,14 @@
             comboDisplay.textContent = "";
             comboDisplay.classList.remove("active");
             gameOverScreen.classList.remove("visible");
-            playerAngle = 0;
-            if (enemySpawnInterval) clearInterval(enemySpawnInterval);
-            enemySpawnInterval = setInterval(spawnEnemy, 2500);
+            playerAngle = 0; // ゲーム開始時に角度をリセット
+            smoothedPlayerAngle = 0; // 滑らかな角度もリセット
+
+            // 難易度調整機能の初期化
+            if (enemySpawnIntervalId) clearInterval(enemySpawnIntervalId); 
+            let currentSpawnInterval = INITIAL_SPAWN_INTERVAL;
+            enemySpawnIntervalId = setInterval(spawnEnemy, currentSpawnInterval);
+            
             gameLoop();
         }
 
@@ -494,7 +516,6 @@
                 audioContext = new (window.AudioContext || window.webkitAudioContext)();
             }
 
-            // DeviceOrientationEvent (ジャイロ) の許可リクエスト
             let orientationPermissionGranted = false;
             let motionPermissionGranted = false;
 
@@ -515,13 +536,13 @@
                             alert('ジャイロセンサーの許可リクエスト中にエラーが発生しました。お使いのデバイスが対応しているか確認してください。');
                         });
                 } else {
+                    // 非iOSデバイスまたは古いブラウザの場合
                     window.addEventListener("deviceorientation", handleDeviceOrientation);
                     orientationPermissionGranted = true;
                     checkAllPermissionsGranted();
                 }
             };
 
-            // DeviceMotionEvent (加速度) の許可リクエスト
             const requestMotion = () => {
                 if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
                     DeviceMotionEvent.requestPermission()
@@ -543,6 +564,7 @@
                             checkAllPermissionsGranted();
                         });
                 } else {
+                    // 非iOSデバイスまたは古いブラウザの場合
                     window.addEventListener("devicemotion", handleDeviceMotion);
                     motionPermissionGranted = true;
                     checkAllPermissionsGranted();
@@ -563,9 +585,18 @@
 
         function handleDeviceOrientation(e) {
             if (e.alpha !== null) {
-                playerAngle = -e.alpha * Math.PI / 180;
+                const rawAngle = -e.alpha * Math.PI / 180; // 生の角度データ
+                // 角度の差分を計算し、最短経路で補間するための処理
+                let angleDiff = rawAngle - playerAngle;
+                if (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
+                if (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
+
+                playerAngle += angleDiff; // 現在の角度を更新
+                
+                // ローパスフィルターで滑らかにする
+                smoothedPlayerAngle = smoothedPlayerAngle * (1 - SMOOTHING_FACTOR) + playerAngle * SMOOTHING_FACTOR;
             }
-            // ジャイロの角速度も記録 (センサーフュージョン用)
+            // ジャイロの角速度も記録 (車両モーションキューのセンサーフュージョン用)
             if (e.rotationRate) {
                 lastRotationRate.alpha = e.rotationRate.alpha || 0;
                 lastRotationRate.beta = e.rotationRate.beta || 0;
@@ -578,14 +609,18 @@
             let accX = 0, accY = 0;
 
             // 1. 重力と動きの分離（accelerationがあれば優先）
+            // Core MotionのCMAcceleration.userAccelerationに相当する値を取得
             if (e.acceleration && e.acceleration.x !== null) {
                 // 重力成分を含まない純粋な加速度
                 accX = e.acceleration.x;
                 accY = e.acceleration.y;
             } else if (e.accelerationIncludingGravity && e.accelerationIncludingGravity.x !== null) {
-                // 重力成分を含む加速度（fallback）
+                // 重力成分を含む加速度（fallback）。この場合、重力は考慮できないので動きが不正確になる可能性あり
                 accX = e.accelerationIncludingGravity.x;
                 accY = e.accelerationIncludingGravity.y;
+            } else {
+                // 加速度データがない場合、処理をスキップ
+                return;
             }
 
             // 2. ローパスフィルター
@@ -597,9 +632,9 @@
             // 加速度に加えて、ジャイロの角速度も考慮に入れる。
             // デバイスの回転速度に応じて、ドットの移動量を調整することで、
             // より動きに即した視覚的なフィードバックを与える。
-            // 例えば、Y軸の回転（beta）は上下の動き、X軸の回転（gamma）は左右の動きに影響させる。
-            const rotationInfluenceX = lastRotationRate.gamma * 0.1; // 係数は調整
-            const rotationInfluenceY = lastRotationRate.beta * 0.1;  // 係数は調整
+            // beta (X軸周り、前後の傾き) はY方向の動きに、gamma (Z軸周り、左右の傾き) はX方向の動きに影響。
+            const rotationInfluenceX = -lastRotationRate.gamma * 0.05; // 係数は調整、逆方向に動かすためマイナス
+            const rotationInfluenceY = lastRotationRate.beta * 0.05;  // 係数は調整
 
             let targetOffsetX = filteredAccX + rotationInfluenceX;
             let targetOffsetY = filteredAccY + rotationInfluenceY;
@@ -620,11 +655,13 @@
             currentDotOffsetX += (targetOffsetX - currentDotOffsetX) * INERTIA_SMOOTHING;
             currentDotOffsetY += (targetOffsetY - currentDotOffsetY) * INERTIA_SMOOTHING;
 
-            // ドットのスタイルを更新
-            dotTopLeft.style.transform = `translate(${currentDotOffsetX}px, ${currentDotOffsetY}px)`;
-            dotTopRight.style.transform = `translate(${-currentDotOffsetX}px, ${currentDotOffsetY}px)`;
-            dotBottomLeft.style.transform = `translate(${currentDotOffsetX}px, ${-currentDotOffsetY}px)`;
-            dotBottomRight.style.transform = `translate(${-currentDotOffsetX}px, ${-currentDotOffsetY}px)`;
+            // ドットのスタイルを更新（反作用を表現）
+            // 車両が右に動くと、ドットは左に流れる（X座標がマイナス）
+            // 車両が前に動くと、ドットは奥に流れる（Y座標がマイナス）
+            dotTopLeft.style.transform = `translate(${-currentDotOffsetX}px, ${-currentDotOffsetY}px)`;
+            dotTopRight.style.transform = `translate(${currentDotOffsetX}px, ${-currentDotOffsetY}px)`;
+            dotBottomLeft.style.transform = `translate(${-currentDotOffsetX}px, ${currentDotOffsetY}px)`;
+            dotBottomRight.style.transform = `translate(${currentDotOffsetX}px, ${currentDotOffsetY}px)`;
 
             lastAcceleration.x = accX;
             lastAcceleration.y = accY;
@@ -636,11 +673,23 @@
             if (isGameOver) return;
             const angle = Math.random() * 2 * Math.PI;
             const radius = Math.max(canvas.width, canvas.height) / 2 + 50;
+
+            // 現在のスコアに応じて敵の速度を調整
+            let currentEnemySpeed = INITIAL_ENEMY_SPEED_BASE + Math.floor(score / SCORE_FOR_DIFFICULTY_INCREASE) * ENEMY_SPEED_INCREMENT;
+            currentEnemySpeed = Math.min(currentEnemySpeed, MAX_ENEMY_SPEED); // 最大速度を制限
+
+            // 現在のスコアに応じて敵のヘルス（耐久度）を調整
+            let enemyHealth = 1;
+            if (score >= SCORE_FOR_ENEMY_HEALTH_INCREASE) {
+                enemyHealth = 1 + Math.floor(score / SCORE_FOR_ENEMY_HEALTH_INCREASE);
+                enemyHealth = Math.min(enemyHealth, MAX_ENEMY_HEALTH); // 最大ヘルスを制限
+            }
+
             enemies.push({
                 angle: angle,
                 distance: radius,
-                speed: 0.5 + Math.random() * 0.3,
-                health: 1,
+                speed: currentEnemySpeed + Math.random() * 0.3, // 基本速度にランダム要素を加える
+                health: enemyHealth, // ヘルスを設定
                 isApproaching: false
             });
         }
@@ -716,7 +765,8 @@
             ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.moveTo(cx, cy);
-            ctx.lineTo(cx + 80 * Math.cos(playerAngle), cy + 80 * Math.sin(playerAngle));
+            // 揺れ補正後の角度を使用
+            ctx.lineTo(cx + 80 * Math.cos(smoothedPlayerAngle), cy + 80 * Math.sin(smoothedPlayerAngle));
             ctx.stroke();
 
             enemies.forEach(e => {
@@ -793,6 +843,20 @@
         function updateScore(points) {
             score += points;
             scoreDisplay.textContent = score.toString();
+
+            // 難易度調整ロジック（敵の出現間隔）
+            const newInterval = INITIAL_SPAWN_INTERVAL - Math.floor(score / SCORE_FOR_DIFFICULTY_INCREASE) * INTERVAL_DECREMENT;
+            // 最小間隔を下回らないようにし、現在の間隔より短くなる場合のみ更新
+            if (newInterval < currentSpawnInterval && newInterval >= MIN_SPAWN_INTERVAL) {
+                currentSpawnInterval = newInterval;
+                clearInterval(enemySpawnIntervalId);
+                enemySpawnIntervalId = setInterval(spawnEnemy, currentSpawnInterval);
+                console.log(`難易度上昇！敵の出現間隔: ${currentSpawnInterval}ms`); // デバッグ用
+                
+                // 難易度上昇時の特別なサウンドやバイブレーション
+                generateSound(700, 0.05, 'sawtooth', 0.4); // 少し高めの音
+                vibrateDevice([50, 30, 50]); // 短い振動
+            }
         }
 
         function endGame() {
@@ -801,7 +865,7 @@
             vibrateDevice([200, 100, 200, 100, 200]);
             generateSound(200, 0.4, 'square', 0.6);
 
-            if (enemySpawnInterval) clearInterval(enemySpawnInterval);
+            if (enemySpawnIntervalId) clearInterval(enemySpawnIntervalId); // 正しい変数名に変更
             finalScore.textContent = `FINAL SCORE: ${score}`;
             gameOverScreen.classList.add("visible");
         }
@@ -830,10 +894,11 @@
             }, SHOOT_COOLDOWN_TIME);
 
             let hit = false;
-            const shootRange = Math.PI / 15;
+            const shootRange = Math.PI / 15; // 照準範囲
 
             enemies = enemies.filter(e => {
-                const diff = Math.abs(normalizeAngle(e.angle - playerAngle));
+                // 揺れ補正後の角度で判定
+                const diff = Math.abs(normalizeAngle(e.angle - smoothedPlayerAngle));
                 if (diff < shootRange && e.distance < 300) {
                     e.health--;
                     if (e.health <= 0) {
@@ -849,7 +914,9 @@
                         }
                         lastKillTime = currentTime;
 
+                        let pointsEarned = 100;
                         if (comboCount > 1) {
+                            pointsEarned = 100 * comboCount; // コンボでスコアが増加
                             comboDisplay.textContent = `${comboCount} COMBO!`;
                             comboDisplay.classList.add("active");
                             if (comboCount % 3 === 0) {
@@ -866,34 +933,45 @@
                                 comboDisplay.style.transition = 'opacity 0.3s ease-out, transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
                             }, 500);
                         }
-
-                        let points = 100;
-                        if (comboCount >= 2) {
-                            points = Math.floor(points * (1 + comboCount * 0.2));
-                        }
-                        updateScore(points);
-                        showScorePopup(ex, ey, points, comboCount);
+                        
+                        updateScore(pointsEarned);
+                        showScorePopup(ex, ey, pointsEarned, comboCount);
                         hit = true;
-                        vibrateDevice([40, 30, 40]);
-                        generateSound(1000, 0.1, 'triangle', 0.5);
-                        return false;
+                        return false; // 敵を削除
+                    } else {
+                        // 敵のヘルスが残っている場合
+                        const ex = cx + e.distance * Math.cos(e.angle);
+                        const ey = cy + e.distance * Math.sin(e.angle);
+                        createHitEffect(ex, ey); // ヒットエフェクトは表示
+                        generateSound(400, 0.05, 'square', 0.2); // 弱いヒット音
+                        vibrateDevice([10]); // 短い弱い振動
+                        return true; // 敵は残す
                     }
                 }
-                return true;
+                return true; // 敵を残す
             });
+
+            if (!hit) {
+                // ミスした時の処理
+                generateSound(200, 0.1, 'square', 0.2);
+                vibrateDevice([50]);
+                comboCount = 0; // コンボリセット
+                comboDisplay.classList.remove("active");
+                comboDisplay.style.transition = 'opacity 0.5s ease-out, transform 0.5s ease-in';
+                comboDisplay.style.opacity = '0';
+                comboDisplay.style.transform = 'translateY(20px) scale(0.8)';
+                setTimeout(() => {
+                    comboDisplay.textContent = "";
+                    comboDisplay.style.transition = 'opacity 0.3s ease-out, transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+                }, 500);
+            }
         });
 
         restartButton.addEventListener("click", () => {
             initGame();
         });
 
-        let enemySpawnInterval;
-
-        window.onload = () => {
-            startScreen.classList.remove('hidden');
-        };
-
-        startScreen.addEventListener('click', requestDeviceSensorPermissionsAndStartGame);
+        startScreen.addEventListener("click", requestDeviceSensorPermissionsAndStartGame);
 
         window.addEventListener('resize', () => {
             canvas.width = window.innerWidth;
@@ -902,6 +980,8 @@
             cy = canvas.height / 2;
         });
 
+        // 初期ロード時にゲームループは開始しない。スタート画面から開始する
+        // gameLoop(); // 削除またはコメントアウト
     </script>
 </body>
 </html>
