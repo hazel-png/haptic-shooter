@@ -39,13 +39,13 @@
 
         #shootButton {
             position: fixed;
-            bottom: 3.5vh; /* 調整 */
+            bottom: 3.5vh;
             left: 50%;
             transform-style: preserve-3d;
             transform: translateX(-50%) translateZ(50px);
             width: 85%;
-            max-width: 420px; /* 調整 */
-            height: clamp(60px, 12vw, 75px); /* 調整 */
+            max-width: 420px;
+            height: clamp(60px, 12vw, 75px);
             border-radius: 38px;
             background: rgba(255, 255, 255, 0.15);
             backdrop-filter: blur(20px) saturate(1.2);
@@ -224,8 +224,8 @@
 
         #scoreDisplay {
             position: fixed;
-            top: 2.5vh; /* 調整 */
-            left: 4vw; /* 調整 */
+            top: 2.5vh;
+            left: 4vw;
             font-size: clamp(2rem, 8vw, 3.5rem);
             font-weight: 700;
             color: #333;
@@ -237,8 +237,8 @@
 
         #comboDisplay {
             position: fixed;
-            top: 9vh; /* 調整 */
-            left: 4vw; /* 調整 */
+            top: 9vh;
+            left: 4vw;
             font-size: clamp(1.5rem, 6vw, 2.5rem);
             font-weight: 700;
             color: rgba(0, 122, 255, 1);
@@ -297,7 +297,7 @@
 
         #finalScore {
             font-size: clamp(2rem, 8vw, 4rem);
-            margin-bottom: 5vh; /* 調整 */
+            margin-bottom: 5vh;
             color: rgba(0, 122, 255, 1);
             text-shadow: 0 0 15px rgba(0, 123, 255, 0.4);
             font-family: inherit;
@@ -306,7 +306,7 @@
         }
 
         #restartButton {
-            padding: 1.8vh 4.5vw; /* 調整 */
+            padding: 1.8vh 4.5vw;
             background: rgba(255, 255, 255, 0.5);
             border: 1px solid rgba(255, 255, 255, 0.9);
             border-bottom-color: rgba(255, 255, 255, 0.5);
@@ -367,7 +367,7 @@
             font-weight: 700;
             color: #f0f0f0;
             transform: translateZ(8px);
-            margin-bottom: 3.5vh; /* 調整 */
+            margin-bottom: 3.5vh;
         }
 
         #startScreen span {
@@ -411,7 +411,7 @@
         const startScreen = document.getElementById("startScreen");
 
         let enemies = [];
-        let playerAngle = 0;
+        let deviceOrientationOffset = 0; // デバイスの回転量
         let cx; // Canvasの中心座標は動的に設定
         let cy; // Canvasの中心座標は動的に設定
         let score = 0;
@@ -468,7 +468,7 @@
             comboDisplay.textContent = "";
             comboDisplay.classList.remove("active");
             gameOverScreen.classList.remove("visible");
-            playerAngle = 0;
+            deviceOrientationOffset = 0; // リセット
             if (enemySpawnInterval) clearInterval(enemySpawnInterval);
             enemySpawnInterval = setInterval(spawnEnemy, 2500);
             gameLoop();
@@ -503,7 +503,9 @@
 
         function handleDeviceOrientation(e) {
             if (e.alpha !== null) {
-                playerAngle = -e.alpha * Math.PI / 180;
+                // デバイスの回転を記録。これを敵の描画とレーダーの回転に使う。
+                // ジャイロの値は度で来るのでラジアンに変換し、反時計回りを正とするために-を付ける
+                deviceOrientationOffset = -e.alpha * Math.PI / 180;
             }
         }
 
@@ -512,7 +514,7 @@
             const angle = Math.random() * 2 * Math.PI;
             const radius = Math.max(window.innerWidth, window.innerHeight) / 2 + 50;
             enemies.push({
-                angle: angle,
+                angle: angle, // 敵の絶対的な角度
                 distance: radius,
                 speed: 0.5 + Math.random() * 0.3,
                 health: 1,
@@ -529,7 +531,10 @@
                     generateSound(440, 0.05, 'sawtooth', 0.3);
                 }
                 if (e.distance < 100 && Math.random() < 0.1) {
-                    createEnemyParticle(cx + e.distance * Math.cos(e.angle), cy + e.distance * Math.sin(e.angle));
+                    // ここでのparticle位置は、描画時の相対角度ではなく、絶対的な位置で計算
+                    const ex = cx + e.distance * Math.cos(e.angle);
+                    const ey = cy + e.distance * Math.sin(e.angle);
+                    createEnemyParticle(ex, ey);
                 }
             });
             enemies = enemies.filter(e => {
@@ -558,6 +563,7 @@
             particle.className = "enemy-particle";
             const size = Math.random() * 4 + 2;
             particle.style.width = particle.style.height = `${size}px`;
+            // パーティクルはDOM要素なので、描画ロジックの回転とは別に、絶対位置で設定
             particle.style.left = `${x + (Math.random() - 0.5) * 20}px`;
             particle.style.top = `${y + (Math.random() - 0.5) * 20}px`;
             document.body.appendChild(particle);
@@ -567,12 +573,19 @@
         function drawRadar() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+            // 背景のノイズは回転させない
             for (let i = 0; i < 60; i++) {
                 ctx.fillStyle = `rgba(0, 0, 0, ${0.01 + Math.random() * 0.03})`;
                 ctx.beginPath();
                 ctx.arc(Math.random() * canvas.width, Math.random() * canvas.height, 0.7, 0, 2 * Math.PI);
                 ctx.fill();
             }
+
+            // キャンバス全体をデバイスの回転量だけ逆方向に回転させる
+            ctx.save(); // 現在の描画状態を保存
+            ctx.translate(cx, cy); // 中心を原点に移動
+            ctx.rotate(-deviceOrientationOffset); // 回転 (デバイスの回転とは逆方向に)
+            ctx.translate(-cx, -cy); // 元の中心に戻す
 
             ctx.strokeStyle = "rgba(100, 100, 100, 0.1)";
             ctx.lineWidth = 0.5;
@@ -582,21 +595,25 @@
                 ctx.stroke();
             }
 
+            // プレイヤー（中心の点）
             ctx.fillStyle = "#333";
             ctx.beginPath();
             ctx.arc(cx, cy, 4, 0, 2 * Math.PI);
             ctx.fill();
 
+            // プレイヤーの照準線は常に上方向（0ラジアン）を指す
             ctx.strokeStyle = "rgba(0, 122, 255, 0.8)";
             ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.moveTo(cx, cy);
-            ctx.lineTo(cx + 80 * Math.cos(playerAngle), cy + 80 * Math.sin(playerAngle));
+            ctx.lineTo(cx + 80 * Math.cos(-Math.PI / 2), cy + 80 * Math.sin(-Math.PI / 2)); // 真上を指すように-PI/2
             ctx.stroke();
 
             enemies.forEach(e => {
-                const ex = cx + e.distance * Math.cos(e.angle);
-                const ey = cy + e.distance * Math.sin(e.angle);
+                // 敵の描画角度は、敵の絶対角度からデバイスの回転量を引いたものになる
+                const relativeAngle = e.angle - deviceOrientationOffset;
+                const ex = cx + e.distance * Math.cos(relativeAngle);
+                const ey = cy + e.distance * Math.sin(relativeAngle);
                 let enemyColor = "rgba(0, 122, 255, 0.8)";
                 let enemySize = 5;
                 let doBlink = false;
@@ -616,9 +633,12 @@
                 ctx.arc(ex, ey, enemySize, 0, 2 * Math.PI);
                 ctx.fill();
             });
+
+            ctx.restore(); // 保存した描画状態を復元（回転を解除）
         }
 
         function normalizeAngle(angle) {
+            // 角度を -PI から PI の範囲に正規化
             return Math.atan2(Math.sin(angle), Math.cos(angle));
         }
 
@@ -679,7 +699,7 @@
 
         shootButton.addEventListener("click", () => {
             if (isGameOver || shootCooldown) return;
-            createShootVisual(cx, cy);
+            createShootVisual(cx, cy); // プレイヤーは固定なので、中心から撃つ
             generateSound(880, 0.08, 'sine', 0.4);
             vibrateDevice([20, 10, 20]);
             shootButtonIcon.classList.add('bounce');
@@ -694,15 +714,21 @@
                 shootButton.classList.remove("cooldown");
                 shootCooldownBar.style.animation = '';
             }, SHOOT_COOLDOWN_TIME);
-            let hit = false;
+
+            // 敵の判定は、敵の絶対角度とデバイスの回転オフセットを考慮する
+            const shootAngle = -Math.PI / 2; // プレイヤーの照準は常に真上（-PI/2）
             const shootRange = Math.PI / 15;
             enemies = enemies.filter(e => {
-                const diff = Math.abs(normalizeAngle(e.angle - playerAngle));
+                // 敵の絶対角度からデバイスの回転オフセットを引いた角度が、照準範囲内にあるか
+                const relativeEnemyAngle = normalizeAngle(e.angle - deviceOrientationOffset);
+                const diff = Math.abs(normalizeAngle(relativeEnemyAngle - shootAngle));
+
                 if (diff < shootRange && e.distance < 300) {
                     e.health--;
                     if (e.health <= 0) {
-                        const ex = cx + e.distance * Math.cos(e.angle);
-                        const ey = cy + e.distance * Math.sin(e.angle);
+                        // ヒットエフェクト、スコアポップアップの位置も絶対位置で計算
+                        const ex = cx + e.distance * Math.cos(e.angle); // ここは敵の絶対角度
+                        const ey = cy + e.distance * Math.sin(e.angle); // ここは敵の絶対角度
                         createHitEffect(ex, ey);
                         const currentTime = performance.now();
                         if (currentTime - lastKillTime < COMBO_RESET_TIME) {
@@ -734,7 +760,6 @@
                         }
                         updateScore(points);
                         showScorePopup(ex, ey, points, comboCount);
-                        hit = true;
                         vibrateDevice([40, 30, 40]);
                         generateSound(1000, 0.1, 'triangle', 0.5);
                         return false;
