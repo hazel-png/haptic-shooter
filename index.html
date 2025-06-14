@@ -164,42 +164,67 @@
     </div>
   </div>
 
-  <script>
-    const slider = document.getElementById("gravitySlider");
-    const gravityValue = document.getElementById("gravityValue");
-    const indicatorBar = document.getElementById("indicatorBar");
-    const panel = document.getElementById("panel");
+<script>
+  const slider = document.getElementById("gravitySlider");
+  const gravityValue = document.getElementById("gravityValue");
+  const indicatorBar = document.getElementById("indicatorBar");
+  const panel = document.getElementById("panel");
 
-    slider.addEventListener("input", () => {
-      const value = slider.value;
-      gravityValue.textContent = value + "%";
-      indicatorBar.style.width = value + "%";
-    });
+  slider.addEventListener("input", () => {
+    const value = slider.value;
+    gravityValue.textContent = value + "%";
+    indicatorBar.style.width = value + "%";
+  });
 
-    // スマホ傾き対応
-    function handleOrientation(event) {
-      const gamma = event.gamma || 0; // 左右
-      const beta = event.beta || 0;   // 上下
-      const rotateY = Math.max(Math.min(gamma, 30), -30);
-      const rotateX = Math.max(Math.min(beta - 90, 30), -30);
-      panel.style.transform = `rotateX(${rotateX}deg) rotateY(${rotateY}deg)`;
-    }
+  // 補間用変数
+  let currentX = 0;
+  let currentY = 0;
+  let targetX = 0;
+  let targetY = 0;
 
-    if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
-      // iOS (13+): ユーザーに許可を求める
-      DeviceOrientationEvent.requestPermission()
-        .then(permissionState => {
-          if (permissionState === "granted") {
-            window.addEventListener("deviceorientation", handleOrientation);
-          } else {
-            alert("センサーの使用が許可されていません。");
-          }
-        })
-        .catch(console.error);
-    } else {
-      // Androidなど他ブラウザはそのまま使える
-      window.addEventListener("deviceorientation", handleOrientation);
-    }
-  </script>
+  let betaOffset = null; // 初期傾き記憶用
+
+  function handleOrientation(event) {
+    const gamma = event.gamma || 0; // 左右
+    const beta = event.beta || 0;   // 上下
+
+    // 初回のみベータオフセットを記録
+    if (betaOffset === null) betaOffset = beta;
+
+    // 基準との差分を使う
+    const adjustedX = Math.max(Math.min(beta - betaOffset, 30), -30);
+    const adjustedY = Math.max(Math.min(gamma, 30), -30);
+
+    targetX = adjustedX;
+    targetY = adjustedY;
+  }
+
+  // アニメーションループで補間
+  function animate() {
+    currentX += (targetX - currentX) * 0.1;
+    currentY += (targetY - currentY) * 0.1;
+    panel.style.transform = `rotateX(${currentX.toFixed(2)}deg) rotateY(${currentY.toFixed(2)}deg)`;
+    requestAnimationFrame(animate);
+  }
+
+  animate(); // 開始
+
+  if (typeof DeviceOrientationEvent !== "undefined" && typeof DeviceOrientationEvent.requestPermission === "function") {
+    // iOS
+    DeviceOrientationEvent.requestPermission()
+      .then(state => {
+        if (state === "granted") {
+          window.addEventListener("deviceorientation", handleOrientation);
+        } else {
+          alert("センサー使用が許可されていません。");
+        }
+      })
+      .catch(console.error);
+  } else {
+    // Androidなど
+    window.addEventListener("deviceorientation", handleOrientation);
+  }
+</script>
+
 </body>
 </html>
