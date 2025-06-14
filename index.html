@@ -10,7 +10,7 @@
             margin: 0;
             background: linear-gradient(135deg, #f0f2f5, #e0e5ec);
             overflow: hidden;
-            font-family: -apple-system, BlinkMacSystemFont, "SF Pro", 'Inter', sans-serif;
+            font-family: -apple-system, BlinkMacMacSystemFont, "SF Pro", 'Inter', sans-serif;
             color: #333;
             display: flex;
             justify-content: center;
@@ -86,10 +86,12 @@
                 0 0 0 1px rgba(255, 255, 255, 0.85) inset,
                 0 0 0 2px rgba(255, 255, 255, 0.5) inset;
         }
+
         #shootButton:not(.cooldown) .icon.bounce {
             animation: shootButtonBounce 0.15s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards;
             color: rgba(0, 122, 255, 1);
         }
+
         @keyframes shootButtonBounce {
             0% { transform: scale(1) translateZ(5px); }
             50% { transform: scale(1.1) translateZ(10px); }
@@ -104,6 +106,7 @@
             cursor: not-allowed;
             transform: translateX(-50%) translateZ(45px);
         }
+
         #shootButton.cooldown .icon {
             color: rgba(100, 100, 100, 0.5);
         }
@@ -119,6 +122,7 @@
             animation: cooldownFill linear forwards;
             transform: translateZ(1px);
         }
+
         @keyframes cooldownFill {
             from { transform: scaleX(0) translateZ(1px); }
             to { transform: scaleX(1) translateZ(1px); }
@@ -324,12 +328,12 @@
             box-shadow: 0 15px 40px rgba(0, 0, 0, 0.25);
             transform: translateY(-5px) translateZ(20px);
         }
+
         #restartButton:active {
             transform: scale(0.96) translateZ(8px);
             box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
         }
 
-        /* スタート画面のスタイル */
         #startScreen {
             position: fixed;
             top: 0;
@@ -372,17 +376,6 @@
             color: #ccc;
             transform: translateZ(2px);
         }
-
-        /* 車両モーションキュー風ドットのスタイル */
-        .motion-cue-dot {
-            position: fixed;
-            background-color: rgba(255, 255, 255, 0.7); /* 白いドット */
-            border-radius: 50%;
-            pointer-events: none;
-            opacity: 0;
-            transition: opacity 0.1s ease-out;
-            z-index: 99; /* 他のUIより手前に */
-        }
     </style>
 </head>
 <body>
@@ -422,10 +415,6 @@
 
         let enemies = [];
         let playerAngle = 0;
-        // 揺れ補正用の変数
-        let smoothedPlayerAngle = 0;
-        const SMOOTHING_FACTOR = 0.1; // 揺れ補正の強度（0.1は弱め、0.01は強め）
-
         const cx = canvas.width / 2;
         const cy = canvas.height / 2;
         let score = 0;
@@ -439,29 +428,6 @@
 
         let audioContext;
 
-        // 難易度調整用の変数
-        let enemySpawnIntervalId;
-        const INITIAL_SPAWN_INTERVAL = 2500; // 初期出現間隔 (ms)
-        const MIN_SPAWN_INTERVAL = 800; // 最小出現間隔 (ms)
-        const SCORE_FOR_DIFFICULTY_INCREASE = 500; // このスコアごとに難易度が上がる
-        const INTERVAL_DECREMENT = 100; // 難易度上昇ごとの間隔減少量
-        let currentSpawnInterval = INITIAL_SPAWN_INTERVAL; // 現在の敵出現間隔
-
-        const INITIAL_ENEMY_SPEED_BASE = 0.5; // 敵の初期基本速度
-        const ENEMY_SPEED_INCREMENT = 0.05; // 難易度上昇ごとの速度増加量
-        const MAX_ENEMY_SPEED = 1.5; // 敵の最大速度
-
-        const SCORE_FOR_ENEMY_HEALTH_INCREASE = 1500; // このスコアごとに敵のヘルスが上がる
-        const MAX_ENEMY_HEALTH = 3; // 敵の最大ヘルス
-
-        // 車両モーションキュー風ドット用変数
-        let motionCueDots = [];
-        const MAX_MOTION_CUE_DOTS = 10; // 画面に表示するドットの最大数
-        const MOTION_CUE_DOT_SIZE = 6; // ドットのサイズ
-        const MOTION_CUE_INTENSITY_FACTOR = 0.5; // ドットの動きの強度調整
-        let lastDeviceAcceleration = { x: 0, y: 0, z: 0 }; // 前回の加速度データ
-
-        // バイブレーション関数を抽象化
         function vibrateDevice(pattern) {
             if (navigator.vibrate) {
                 navigator.vibrate(pattern);
@@ -497,13 +463,8 @@
             comboDisplay.classList.remove("active");
             gameOverScreen.classList.remove("visible");
             playerAngle = 0;
-            smoothedPlayerAngle = 0; // ゲーム開始時に揺れ補正もリセット
-
-            // 難易度をリセット
-            currentSpawnInterval = INITIAL_SPAWN_INTERVAL;
-            if (enemySpawnIntervalId) clearInterval(enemySpawnIntervalId);
-            enemySpawnIntervalId = setInterval(spawnEnemy, currentSpawnInterval);
-
+            if (enemySpawnInterval) clearInterval(enemySpawnInterval);
+            enemySpawnInterval = setInterval(spawnEnemy, 2500);
             gameLoop();
         }
 
@@ -517,29 +478,8 @@
                     .then(permissionState => {
                         if (permissionState === 'granted') {
                             window.addEventListener("deviceorientation", handleDeviceOrientation);
-                            // DeviceMotionの権限もリクエスト (iOS 13+ で DeviceMotionEvent.requestPermission が利用可能か確認)
-                            if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
-                                DeviceMotionEvent.requestPermission()
-                                    .then(motionPermissionState => {
-                                        if (motionPermissionState === 'granted') {
-                                            window.addEventListener("devicemotion", handleDeviceMotion);
-                                        } else {
-                                            console.warn('DeviceMotionの利用が拒否されました。モーションキューは限定的に動作します。');
-                                        }
-                                        startScreen.classList.add('hidden');
-                                        initGame();
-                                    })
-                                    .catch(error => {
-                                        console.error("DeviceMotionEvent.requestPermission error:", error);
-                                        startScreen.classList.add('hidden');
-                                        initGame();
-                                    });
-                            } else {
-                                // DeviceMotionEvent.requestPermission がない場合は直接リスナーを追加
-                                window.addEventListener("devicemotion", handleDeviceMotion);
-                                startScreen.classList.add('hidden');
-                                initGame();
-                            }
+                            startScreen.classList.add('hidden');
+                            initGame();
                         } else {
                             alert('ジャイロセンサーの利用が拒否されました。ゲームをプレイできません。ブラウザの設定で許可が必要な場合があります。');
                         }
@@ -550,130 +490,26 @@
                     });
             } else {
                 window.addEventListener("deviceorientation", handleDeviceOrientation);
-                window.addEventListener("devicemotion", handleDeviceMotion); // requestPermission がない場合
                 startScreen.classList.add('hidden');
                 initGame();
             }
         }
 
-        // 揺れ補正を適用した handleDeviceOrientation
         function handleDeviceOrientation(e) {
             if (e.alpha !== null) {
-                const rawAngle = -e.alpha * Math.PI / 180; // 生の角度データ
-                
-                // 角度の差分を計算し、最短経路で補間するための処理
-                let angleDiff = rawAngle - playerAngle;
-                if (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
-                if (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
-
-                playerAngle += angleDiff; // 現在の角度を更新
-                
-                // ローパスフィルターで滑らかにする
-                smoothedPlayerAngle = smoothedPlayerAngle * (1 - SMOOTHING_FACTOR) + playerAngle * SMOOTHING_FACTOR;
+                playerAngle = -e.alpha * Math.PI / 180;
             }
         }
-
-        // 車両モーションキュー風UIのためのDeviceMotion処理
-        function handleDeviceMotion(e) {
-            if (e.accelerationIncludingGravity && !isGameOver) {
-                const acc = e.accelerationIncludingGravity;
-                const sensitivity = 0.5; // 加速度に対するドットの移動感度
-                
-                // 加速度の変化量を計算 (ジャークを簡易的に表現)
-                const deltaX = acc.x - lastDeviceAcceleration.x;
-                const deltaY = acc.y - lastDeviceAcceleration.y;
-                const deltaZ = acc.z - lastDeviceAcceleration.z;
-                
-                lastDeviceAcceleration = { x: acc.x, y: acc.y, z: acc.z };
-
-                // 加速度に応じてドットを生成・移動させる
-                // ここではX, Y軸の加速度を主に利用し、反作用的にドットを動かす
-                const moveX = -deltaX * MOTION_CUE_INTENSITY_FACTOR * 5; // X軸の加速度変化を反転して左右に動かす
-                const moveY = deltaY * MOTION_CUE_INTENSITY_FACTOR * 5; // Y軸の加速度変化で上下に動かす
-
-                // ドットの生成と移動
-                if (Math.abs(moveX) > 0.1 || Math.abs(moveY) > 0.1) {
-                    createMotionCueDot(moveX, moveY);
-                }
-            }
-        }
-
-        function createMotionCueDot(moveX, moveY) {
-            const dot = document.createElement("div");
-            dot.className = "motion-cue-dot";
-            const size = MOTION_CUE_DOT_SIZE + Math.random() * 4; // サイズにランダム性
-            dot.style.width = dot.style.height = `${size}px`;
-            
-            // ドットの初期位置は画面の端
-            // 加速度の方向に応じて、ドットが流れてくる方向を調整
-            let startX, startY;
-            const screenPadding = 20; // 画面端からの開始位置のパディング
-
-            if (moveX > 0) { // 左への揺れの場合、ドットは右から
-                startX = window.innerWidth - screenPadding;
-            } else { // 右への揺れの場合、ドットは左から
-                startX = screenPadding;
-            }
-
-            if (moveY > 0) { // 上への揺れの場合、ドットは下から
-                startY = window.innerHeight - screenPadding;
-            } else { // 下への揺れの場合、ドットは上から
-                startY = screenPadding;
-            }
-
-            dot.style.left = `${startX}px`;
-            dot.style.top = `${startY}px`;
-            dot.style.opacity = '1';
-            
-            document.body.appendChild(dot);
-            motionCueDots.push(dot);
-
-            // ドットを加速度に応じて反対方向に移動させるアニメーション
-            // translateX/Yで移動し、徐々に消える
-            const endX = startX + moveX * 10; // 移動量に応じて終点を調整
-            const endY = startY + moveY * 10;
-
-            dot.animate([
-                { transform: `translate(${0}px, ${0}px)`, opacity: 1 },
-                { transform: `translate(${endX - startX}px, ${endY - startY}px)`, opacity: 0 }
-            ], {
-                duration: 500 + Math.random() * 300, // ドットの寿命にランダム性
-                easing: 'ease-out',
-                fill: 'forwards'
-            }).onfinish = () => {
-                dot.remove();
-                motionCueDots = motionCueDots.filter(d => d !== dot);
-            };
-
-            // ドットの数を制限
-            if (motionCueDots.length > MAX_MOTION_CUE_DOTS) {
-                motionCueDots[0].remove();
-                motionCueDots.shift();
-            }
-        }
-
 
         function spawnEnemy() {
             if (isGameOver) return;
             const angle = Math.random() * 2 * Math.PI;
             const radius = Math.max(canvas.width, canvas.height) / 2 + 50;
-
-            // スコアに応じて敵の速度を調整
-            let currentEnemySpeed = INITIAL_ENEMY_SPEED_BASE + Math.floor(score / SCORE_FOR_DIFFICULTY_INCREASE) * ENEMY_SPEED_INCREMENT;
-            currentEnemySpeed = Math.min(currentEnemySpeed, MAX_ENEMY_SPEED); // 最大速度を制限
-
-            // スコアに応じて敵のヘルスを調整
-            let enemyHealth = 1;
-            if (score >= SCORE_FOR_ENEMY_HEALTH_INCREASE) {
-                enemyHealth = 1 + Math.floor(score / SCORE_FOR_DIFFICULTY_INCREASE);
-                enemyHealth = Math.min(enemyHealth, MAX_ENEMY_HEALTH); // 最大ヘルスを制限
-            }
-
             enemies.push({
                 angle: angle,
                 distance: radius,
-                speed: currentEnemySpeed + Math.random() * 0.3, // 基本速度にランダム要素を加える
-                health: enemyHealth, // ヘルスを設定
+                speed: 0.5 + Math.random() * 0.3,
+                health: 1,
                 isApproaching: false
             });
         }
@@ -745,22 +581,19 @@
             ctx.arc(cx, cy, 4, 0, 2 * Math.PI);
             ctx.fill();
 
-            // 照準線 (smoothedPlayerAngle を使用)
             ctx.strokeStyle = "rgba(0, 122, 255, 0.8)";
             ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.moveTo(cx, cy);
-            ctx.lineTo(cx + 80 * Math.cos(smoothedPlayerAngle), cy + 80 * Math.sin(smoothedPlayerAngle));
+            ctx.lineTo(cx + 80 * Math.cos(playerAngle), cy + 80 * Math.sin(playerAngle));
             ctx.stroke();
 
             enemies.forEach(e => {
                 const ex = cx + e.distance * Math.cos(e.angle);
                 const ey = cy + e.distance * Math.sin(e.angle);
-
                 let enemyColor = "rgba(0, 122, 255, 0.8)";
                 let enemySize = 5;
                 let doBlink = false;
-
                 if (e.distance < 70) {
                     enemyColor = "rgba(255, 45, 85, 0.9)";
                     enemySize = 8 + (70 - e.distance) / 7;
@@ -772,7 +605,6 @@
                     enemyColor = "rgba(0, 122, 255, 0.8)";
                     enemySize = 5;
                 }
-
                 ctx.fillStyle = doBlink ? "rgba(255, 45, 85, 1)" : enemyColor;
                 ctx.beginPath();
                 ctx.arc(ex, ey, enemySize, 0, 2 * Math.PI);
@@ -824,22 +656,9 @@
             setTimeout(() => popup.remove(), 900);
         }
 
-        // スコア更新時に難易度調整ロジックを追加
         function updateScore(points) {
             score += points;
             scoreDisplay.textContent = score.toString();
-
-            // 難易度調整ロジック
-            const newInterval = INITIAL_SPAWN_INTERVAL - Math.floor(score / SCORE_FOR_DIFFICULTY_INCREASE) * INTERVAL_DECREMENT;
-            if (newInterval < currentSpawnInterval && newInterval >= MIN_SPAWN_INTERVAL) {
-                currentSpawnInterval = newInterval;
-                clearInterval(enemySpawnIntervalId);
-                enemySpawnIntervalId = setInterval(spawnEnemy, currentSpawnInterval);
-                console.log(`難易度上昇！敵の出現間隔: ${currentSpawnInterval}ms`); // デバッグ用
-
-                generateSound(700, 0.05, 'sawtooth', 0.4); // 少し高めの音
-                vibrateDevice([50, 30, 50]); // 短い振動
-            }
         }
 
         function endGame() {
@@ -847,46 +666,38 @@
             isGameOver = true;
             vibrateDevice([200, 100, 200, 100, 200]);
             generateSound(200, 0.4, 'square', 0.6);
-
-            if (enemySpawnIntervalId) clearInterval(enemySpawnIntervalId); // 正しい変数名に修正
+            if (enemySpawnInterval) clearInterval(enemySpawnInterval);
             finalScore.textContent = `FINAL SCORE: ${score}`;
             gameOverScreen.classList.add("visible");
         }
 
         shootButton.addEventListener("click", () => {
             if (isGameOver || shootCooldown) return;
-
             createShootVisual(cx, cy);
             generateSound(880, 0.08, 'sine', 0.4);
             vibrateDevice([20, 10, 20]);
-
             shootButtonIcon.classList.add('bounce');
             setTimeout(() => {
                 shootButtonIcon.classList.remove('bounce');
             }, 150);
-
             shootCooldown = true;
             shootButton.classList.add("cooldown");
             shootCooldownBar.style.animation = `cooldownFill ${SHOOT_COOLDOWN_TIME / 1000}s linear forwards`;
-
             setTimeout(() => {
                 shootCooldown = false;
                 shootButton.classList.remove("cooldown");
                 shootCooldownBar.style.animation = '';
             }, SHOOT_COOLDOWN_TIME);
-
             let hit = false;
             const shootRange = Math.PI / 15;
-
             enemies = enemies.filter(e => {
-                const diff = Math.abs(normalizeAngle(e.angle - smoothedPlayerAngle)); // smoothedPlayerAngle を使用
+                const diff = Math.abs(normalizeAngle(e.angle - playerAngle));
                 if (diff < shootRange && e.distance < 300) {
                     e.health--;
                     if (e.health <= 0) {
                         const ex = cx + e.distance * Math.cos(e.angle);
                         const ey = cy + e.distance * Math.sin(e.angle);
                         createHitEffect(ex, ey);
-
                         const currentTime = performance.now();
                         if (currentTime - lastKillTime < COMBO_RESET_TIME) {
                             comboCount++;
@@ -894,7 +705,6 @@
                             comboCount = 1;
                         }
                         lastKillTime = currentTime;
-
                         if (comboCount > 1) {
                             comboDisplay.textContent = `${comboCount} COMBO!`;
                             comboDisplay.classList.add("active");
@@ -903,7 +713,6 @@
                             }
                             generateSound(800 + comboCount * 50, 0.08, 'triangle', 0.6);
                         } else {
-                            // コンボがリセットされた場合に備えて非表示に
                             comboDisplay.classList.remove("active");
                             comboDisplay.style.transition = 'opacity 0.5s ease-out, transform 0.5s ease-in';
                             comboDisplay.style.opacity = '0';
@@ -913,7 +722,6 @@
                                 comboDisplay.style.transition = 'opacity 0.3s ease-out, transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
                             }, 500);
                         }
-
                         let points = 100;
                         if (comboCount >= 2) {
                             points = Math.floor(points * (1 + comboCount * 0.2));
@@ -933,6 +741,8 @@
         restartButton.addEventListener("click", () => {
             initGame();
         });
+
+        let enemySpawnInterval;
 
         window.onload = () => {
             startScreen.classList.remove('hidden');
