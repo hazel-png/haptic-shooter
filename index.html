@@ -22,6 +22,9 @@
             user-select: none;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
+            
+            /* 3D表現の基盤: perspective をbodyに設定 */
+            perspective: 1000px; /* 奥行きの知覚に影響 */
         }
 
         #radarCanvas {
@@ -34,68 +37,80 @@
             left: 0;
             z-index: 1;
             background: radial-gradient(circle at center, rgba(100, 100, 100, 0.03) 0%, rgba(0, 0, 0, 0) 70%);
+            /* レーダー自体も奥に配置 */
+            transform: translateZ(-100px); 
+            /* パララックスの基準点 */
+            transform-origin: center center;
+            will-change: transform; /* アニメーションの最適化 */
         }
 
         #shootButton {
             position: fixed;
-            bottom: 40px; /* マージン：8pxグリッドの40px */
+            bottom: 40px; 
             left: 50%;
-            transform: translateX(-50%);
+            transform-style: preserve-3d; /* 子要素の3D変換を保持 */
+            transform: translateX(-50%) translateZ(50px); /* 手前に浮かせ、奥行きを明確に */
             width: 80%;
             max-width: 400px;
-            height: 70px; /* カプセル型要素は高さの半分を半径に (35px) */
+            height: 70px;
             border-radius: 35px; 
             
             /* Liquid Glass スタイル */
-            background: rgba(255, 255, 255, 0.2); /* 透明度20% */
-            backdrop-filter: blur(15px); /* ブラー15px */
-            -webkit-backdrop-filter: blur(15px);
-            border: 1px solid rgba(255, 255, 255, 0.5); /* より繊細なボーダー */
-            border-bottom-color: rgba(255, 255, 255, 0.2); /* 下部のボーダーを薄く */
-            border-right-color: rgba(255, 255, 255, 0.2); /* 右部のボーダーを薄く */
+            background: rgba(255, 255, 255, 0.15); /* 透明度をやや下げる */
+            backdrop-filter: blur(20px) saturate(1.2); /* ブラーと彩度を強調 */
+            -webkit-backdrop-filter: blur(20px) saturate(1.2);
+            border: 1px solid rgba(255, 255, 255, 0.7); /* ボーダーを強調 */
+            border-bottom-color: rgba(255, 255, 255, 0.3); 
+            border-right-color: rgba(255, 255, 255, 0.3); 
             
             color: #555;
-            font-size: 1.6rem; /* 少し大きく */
+            font-size: 1.6rem; 
             font-weight: 600;
             
-            /* 広範囲に薄い影と内側の明るいハイライト */
-            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15), /* 広範囲の影を強調 */
-                        0 0 0 1.5px rgba(255, 255, 255, 0.9) inset, /* 上部の明るいハイライトを強調 */
-                        0 0 0 3px rgba(255, 255, 255, 0.5) inset; /* 下部のぼやけたハイライト */
+            /* 影を多層化し、奥行きを強調 */
+            box-shadow: 
+                0 25px 50px rgba(0, 0, 0, 0.25), /* 大きく、ぼやけた影で浮遊感 */
+                0 0 0 1.5px rgba(255, 255, 255, 0.95) inset, /* 強い内側ハイライト */
+                0 0 0 3px rgba(255, 255, 255, 0.6) inset; /* 柔らかい内側ハイライト */
             
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1); /* より滑らかなトランジション */
+            transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
             cursor: pointer;
             outline: none;
             z-index: 10;
             overflow: hidden;
+            will-change: transform; /* アニメーションの最適化 */
         }
 
         #shootButton .icon {
-            font-size: 2.2rem; /* アイコンを大きく */
+            font-size: 2.2rem;
             line-height: 1;
-            color: rgba(0, 122, 255, 0.8); /* Apple Blue 適用 */
+            color: rgba(0, 122, 255, 0.8);
             transition: transform 0.1s ease-out, color 0.1s ease-out;
+            transform: translateZ(5px); /* アイコンも少し浮かす */
         }
 
         #shootButton:not(.cooldown):active {
-            transform: translateX(-50%) scale(0.97); /* アクティブ時の縮小を微調整 */
+            /* JavaScriptでtransformを更新するため、ここでは基本的なtransformのみ */
+            /* transform: translateX(-50%) translateZ(40px) scale(0.97); */
+            transform: translateX(-50%) scale(0.97); 
             /* アクティブ時の影を調整 */
-            box-shadow: 0 6px 25px rgba(0, 0, 0, 0.1),
-                        0 0 0 1px rgba(255, 255, 255, 0.8) inset,
-                        0 0 0 2px rgba(255, 255, 255, 0.4) inset;
+            box-shadow: 
+                0 10px 20px rgba(0, 0, 0, 0.15),
+                0 0 0 1px rgba(255, 255, 255, 0.85) inset,
+                0 0 0 2px rgba(255, 255, 255, 0.5) inset;
         }
         #shootButton:not(.cooldown) .icon.bounce {
-            animation: shootButtonBounce 0.15s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards; /* 0.15秒 */
-            color: rgba(0, 122, 255, 1); /* 押された時の色を濃いApple Blueに */
+            animation: shootButtonBounce 0.15s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards;
+            color: rgba(0, 122, 255, 1);
         }
         @keyframes shootButtonBounce {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.1); } /* scale(1.1) */
-            100% { transform: scale(1); }
+            0% { transform: scale(1) translateZ(5px); }
+            50% { transform: scale(1.1) translateZ(10px); } /* より大きく浮き上がる */
+            100% { transform: scale(1) translateZ(5px); }
         }
 
         #shootButton.cooldown {
@@ -104,6 +119,7 @@
             color: rgba(100, 100, 100, 0.5);
             box-shadow: none;
             cursor: not-allowed;
+            /* transform: translateX(-50%) translateZ(45px); */ /* JavaScriptで制御 */
         }
         #shootButton.cooldown .icon {
             color: rgba(100, 100, 100, 0.5);
@@ -114,137 +130,149 @@
             bottom: 0;
             left: 0;
             width: 100%;
-            height: 5px; /* 少し太く */
-            background: linear-gradient(90deg, rgba(0, 122, 255, 0.8), rgba(0, 198, 255, 0.8)); /* Apple Blue グラデーション */
+            height: 5px;
+            background: linear-gradient(90deg, rgba(0, 122, 255, 0.8), rgba(0, 198, 255, 0.8));
             transform-origin: left;
             animation: cooldownFill linear forwards;
+            transform: translateZ(1px); /* バーも少し浮かす */
         }
         @keyframes cooldownFill {
-            from { transform: scaleX(0); }
-            to { transform: scaleX(1); }
+            from { transform: scaleX(0) translateZ(1px); }
+            to { transform: scaleX(1) translateZ(1px); }
         }
 
         .shoot-visual {
             position: absolute;
-            background: rgba(0, 122, 255, 0.5); /* Apple Blue 適用 */
+            background: rgba(0, 122, 255, 0.5);
             border-radius: 50%;
-            transform: translate(-50%, -50%) scale(0);
+            transform: translate(-50%, -50%) scale(0) translateZ(20px); 
             opacity: 0;
             animation: shootVisual 0.3s ease-out forwards;
             pointer-events: none;
             z-index: 5;
+            will-change: transform;
         }
 
         @keyframes shootVisual {
             0% {
-                transform: translate(-50%, -50%) scale(0.3);
+                transform: translate(-50%, -50%) scale(0.3) translateZ(20px);
                 opacity: 1;
             }
             100% {
-                transform: translate(-50%, -50%) scale(8);
+                transform: translate(-50%, -50%) scale(8) translateZ(-50px);
                 opacity: 0;
             }
         }
 
         .hit-effect {
             position: absolute;
-            background: radial-gradient(circle, rgba(0, 180, 255, 0.9) 0%, rgba(0, 180, 255, 0) 70%); /* 明るいApple Blue */
+            background: radial-gradient(circle, rgba(0, 200, 255, 0.9) 0%, rgba(0, 150, 255, 0.6) 40%, rgba(0, 122, 255, 0) 70%); 
             border-radius: 50%;
             animation: hitEffect 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
             pointer-events: none;
             z-index: 6;
             transform-origin: center center;
+            transform: translateZ(10px); 
+            will-change: transform;
         }
 
         @keyframes hitEffect {
             0% {
-                transform: scale(0);
+                transform: scale(0) translateZ(10px);
                 opacity: 1;
             }
             100% {
-                transform: scale(3); /* 少し大きく */
+                transform: scale(3.5) translateZ(-20px);
                 opacity: 0;
             }
         }
 
         .enemy-particle {
             position: absolute;
-            background: rgba(255, 255, 255, 0.9); /* 白を強調 */
+            background: rgba(255, 255, 255, 0.9);
             border-radius: 50%;
             opacity: 0;
             animation: particleFade 0.8s ease-out forwards;
             pointer-events: none;
-            z-index: 4; /* 敵より手前 */
+            z-index: 4; 
+            transform-style: preserve-3d;
+            will-change: transform;
         }
 
         @keyframes particleFade {
             0% {
-                transform: scale(0.2);
-                opacity: 0.9; /* 開始時の透明度を上げる */
+                transform: scale(0.2) translateZ(0); 
+                opacity: 0.9;
             }
             100% {
-                transform: scale(1.8); /* 少し大きく */
+                transform: scale(1.8) translateZ(20px); 
                 opacity: 0;
             }
         }
 
         .score-popup {
             position: absolute;
-            color: rgba(0, 122, 255, 1); /* Apple Blue */
-            font-size: 1.8rem; /* 大きめ */
+            color: rgba(0, 122, 255, 1);
+            font-size: 1.8rem;
             font-weight: 700;
-            font-family: inherit; /* bodyのフォントを継承 */
-            animation: scoreFadeOut 0.9s cubic-bezier(0.165, 0.84, 0.44, 1) forwards; /* アニメーション時間を長く */
+            font-family: inherit;
+            animation: scoreFadeOut 0.9s cubic-bezier(0.165, 0.84, 0.44, 1) forwards;
             opacity: 0;
             pointer-events: none;
             z-index: 7;
-            text-shadow: 0 3px 8px rgba(0, 0, 0, 0.15); /* 影を強調 */
+            text-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
+            transform-style: preserve-3d;
+            will-change: transform;
         }
 
         @keyframes scoreFadeOut {
             0% {
-                transform: translateY(0) scale(1);
+                transform: translateY(0) scale(1) translateZ(10px); 
                 opacity: 1;
             }
             20% {
-                transform: translateY(-15px) scale(1.1); /* 少し大きく移動 */
+                transform: translateY(-15px) scale(1.1) translateZ(20px); 
             }
             100% {
-                transform: translateY(-50px) scale(0.7); /* もっと大きく移動 */
+                transform: translateY(-50px) scale(0.7) translateZ(30px); 
                 opacity: 0;
             }
         }
 
         #scoreDisplay {
             position: fixed;
-            top: 25px; /* マージン：8pxグリッドの24pxに近い25px */
-            left: 25px; /* マージン：8pxグリッドの24pxに近い25px */
-            font-size: 3rem; /* 大きく */
+            top: 25px; 
+            left: 25px; 
+            font-size: 3rem;
             font-weight: 700;
             color: #333;
-            text-shadow: 0 3px 10px rgba(0, 0, 0, 0.08); /* 影を強調 */
+            text-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
             z-index: 10;
-            font-family: inherit; /* bodyのフォントを継承 */
+            font-family: inherit;
+            transform: translateZ(20px); 
+            will-change: transform;
         }
 
         #comboDisplay {
             position: fixed;
-            top: 100px; /* スコアの下に配置 (8pxグリッドで調整) */
-            left: 25px; /* スコアと同じ左位置 */
-            font-size: 2rem; /* スコアより小さく、ガイドラインの2rem以上 */
-            font-weight: 600;
-            color: rgba(0, 122, 255, 1); /* Apple Blue で強調 */
+            top: 100px;
+            left: 25px;
+            font-size: 2.2rem;
+            font-weight: 700;
+            color: rgba(0, 122, 255, 1);
             text-shadow: 0 2px 8px rgba(0, 123, 255, 0.2);
             z-index: 10;
-            font-family: inherit; /* bodyのフォントを継承 */
-            opacity: 0; /* 最初は非表示 */
-            transition: opacity 0.3s ease-out, transform 0.3s ease-out;
-            transform: translateX(-20px); /* 最初は少し左にオフセット */
+            font-family: inherit;
+            opacity: 0;
+            transform-style: preserve-3d;
+            transform: translateY(20px) scale(0.8) translateZ(15px); 
+            transition: opacity 0.3s ease-out, transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            will-change: transform;
         }
 
         #comboDisplay.active {
             opacity: 1;
-            transform: translateX(0);
+            transform: translateY(0) scale(1) translateZ(25px); 
         }
 
         #gameOverScreen {
@@ -253,9 +281,9 @@
             left: 0;
             width: 100vw;
             height: 100vh;
-            background: rgba(255, 255, 255, 0.85); /* 透明度を上げる */
-            backdrop-filter: blur(25px) saturate(1.2); /* ぼかしと彩度を強化 */
-            -webkit-backdrop-filter: blur(25px) saturate(1.2);
+            background: rgba(255, 255, 255, 0.7); 
+            backdrop-filter: blur(35px) saturate(1.3); 
+            -webkit-backdrop-filter: blur(35px) saturate(1.3);
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -265,56 +293,65 @@
             z-index: 100;
             opacity: 0;
             visibility: hidden;
-            transition: opacity 0.6s ease-in-out; /* トランジションを長く */
-            border-radius: 16px; /* 幾何学設計ルール */
+            transition: opacity 0.6s ease-in-out, transform 0.6s ease-in-out;
+            border-radius: 16px;
+            transform-style: preserve-3d;
+            transform: translateZ(50px) scale(0.9); 
+            will-change: transform;
         }
 
         #gameOverScreen.visible {
             opacity: 1;
             visibility: visible;
+            transform: translateZ(150px) scale(1); 
         }
 
         #gameOverScreen h2 {
-            font-size: 5rem; /* さらに大きく */
-            color: rgba(255, 45, 85, 0.9); /* Nintendo Red 適用 */
-            margin-bottom: 25px; /* マージンを調整 */
-            text-shadow: 0 0 15px rgba(255, 45, 85, 0.4); /* 影を強調 */
-            font-weight: 700; /* タイトルフォントウェイト */
+            font-size: 5rem;
+            color: rgba(255, 45, 85, 0.9);
+            margin-bottom: 25px;
+            text-shadow: 0 0 20px rgba(255, 45, 85, 0.5); 
+            font-weight: 700;
+            transform: translateZ(10px); 
         }
 
         #finalScore {
-            font-size: 3.5rem; /* さらに大きく */
-            margin-bottom: 50px; /* マージンを調整 */
-            color: rgba(0, 122, 255, 1); /* Apple Blue 適用 */
-            text-shadow: 0 0 10px rgba(0, 123, 255, 0.3); /* 影を強調 */
-            font-family: inherit; /* bodyのフォントを継承 */
-            font-weight: 600; /* スコアフォントウェイト */
+            font-size: 3.5rem;
+            margin-bottom: 50px;
+            color: rgba(0, 122, 255, 1);
+            text-shadow: 0 0 15px rgba(0, 123, 255, 0.4);
+            font-family: inherit;
+            font-weight: 600;
+            transform: translateZ(5px); 
         }
 
         #restartButton {
-            padding: 18px 45px; /* パディングを増やす */
-            background: rgba(255, 255, 255, 0.6); /* 透明度を上げる */
-            border: 1px solid rgba(255, 255, 255, 0.8); /* ボーダーを強調 */
-            border-bottom-color: rgba(255, 255, 255, 0.4);
-            border-right-color: rgba(255, 255, 255, 0.4);
-            border-radius: 12px; /* 角丸を少し大きく (12px) */
-            color: rgba(0, 122, 255, 1); /* Apple Blue */
-            font-size: 1.8rem; /* 大きく */
+            padding: 18px 45px;
+            background: rgba(255, 255, 255, 0.5); 
+            border: 1px solid rgba(255, 255, 255, 0.9); 
+            border-bottom-color: rgba(255, 255, 255, 0.5);
+            border-right-color: rgba(255, 255, 255, 0.5);
+            border-radius: 12px;
+            color: rgba(0, 122, 255, 1);
+            font-size: 1.8rem;
             font-weight: 700;
             cursor: pointer;
-            transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1); /* より滑らかなトランジション */
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15); /* 影を強調 */
-            font-family: inherit; /* bodyのフォントを継承 */
+            transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2); 
+            font-family: inherit;
+            transform-style: preserve-3d;
+            transform: translateZ(10px); 
+            will-change: transform;
         }
 
         #restartButton:hover {
-            background: rgba(255, 255, 255, 0.8);
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
-            transform: translateY(-3px); /* 移動距離を増やす */
+            background: rgba(255, 255, 255, 0.7);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.25); 
+            /* transform: translateY(-5px) translateZ(20px); */ /* JavaScriptで制御 */
         }
         #restartButton:active {
-            transform: scale(0.96); /* 縮小を微調整 */
-            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
+            /* transform: scale(0.96) translateZ(8px); */ /* JavaScriptで制御 */
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
         }
 
         /* スタート画面のスタイル */
@@ -324,7 +361,7 @@
             left: 0;
             width: 100vw;
             height: 100vh;
-            background: rgba(0, 0, 0, 0.95); /* 背景をより濃く */
+            background: rgba(0, 0, 0, 0.9); 
             color: white;
             display: flex;
             flex-direction: column;
@@ -333,27 +370,33 @@
             font-size: 1.8rem;
             z-index: 200;
             text-align: center;
-            font-family: inherit; /* bodyのフォントを継承 */
+            font-family: inherit;
             cursor: pointer;
             transition: opacity 0.5s ease-out;
+            transform-style: preserve-3d;
+            transform: translateZ(200px); 
+            will-change: transform;
         }
 
         #startScreen.hidden {
             opacity: 0;
             pointer-events: none;
+            transform: translateZ(0px); 
         }
 
         #startScreen p {
-            margin-bottom: 25px; /* マージンを調整 */
-            font-size: 2.8rem; /* 大きく */
-            font-weight: 700; /* タイトルフォントウェイト */
-            color: #f0f0f0; /* 少し明るい白 */
+            margin-bottom: 25px;
+            font-size: 2.8rem;
+            font-weight: 700;
+            color: #f0f0f0;
+            transform: translateZ(5px); 
         }
 
         #startScreen span {
-            font-size: 1.3rem; /* 少し大きく */
-            opacity: 0.85; /* 透明度を調整 */
-            color: #ccc; /* 補助テキスト色 */
+            font-size: 1.3rem;
+            opacity: 0.85;
+            color: #ccc;
+            transform: translateZ(2px); 
         }
 
     </style>
@@ -389,6 +432,18 @@
         const restartButton = document.getElementById("restartButton");
         const startScreen = document.getElementById("startScreen");
 
+        // UI要素とその初期Z値、パララックス係数をマップする
+        // これにより、JavaScriptで動的にtransformを調整しやすくなる
+        const uiElements = [
+            { element: scoreDisplay, initialZ: 20, parallaxFactor: 0.08 },
+            { element: comboDisplay, initialZ: 15, parallaxFactor: 0.12 },
+            { element: shootButton, initialZ: 50, parallaxFactor: 0.15, isButton: true },
+            { element: gameOverScreen, initialZ: 150, parallaxFactor: 0.2 }, // GameOverScreenは表示時のみパララックス
+            { element: restartButton, initialZ: 10, parallaxFactor: 0.17 },
+            { element: startScreen, initialZ: 200, parallaxFactor: 0.25 },
+            { element: canvas, initialZ: -100, parallaxFactor: 0.03 } // レーダーも動かす
+        ];
+
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
 
@@ -406,6 +461,8 @@
         const COMBO_RESET_TIME = 1500; // コンボがリセットされるまでの時間 (ms)
 
         let audioContext;
+        let currentGamma = 0;
+        let currentBeta = 0;
 
         // バイブレーション関数を抽象化
         function vibrateDevice(pattern) {
@@ -458,6 +515,7 @@
                     .then(permissionState => {
                         if (permissionState === 'granted') {
                             window.addEventListener("deviceorientation", handleDeviceOrientation);
+                            window.addEventListener("deviceorientation", handleTilt); // パララックス用イベントリスナー
                             startScreen.classList.add('hidden');
                             initGame();
                         } else {
@@ -470,6 +528,7 @@
                     });
             } else {
                 window.addEventListener("deviceorientation", handleDeviceOrientation);
+                window.addEventListener("deviceorientation", handleTilt); // パララックス用イベントリスナー
                 startScreen.classList.add('hidden');
                 initGame();
             }
@@ -480,6 +539,69 @@
                 playerAngle = -e.alpha * Math.PI / 180;
             }
         }
+        
+        // パララックス効果のための傾き処理
+        function handleTilt(e) {
+            // gamma: -90 (左傾き) to 90 (右傾き)
+            // beta: -180 (奥に倒す) to 180 (手前に倒す) -- デバイスによるが、通常は-90 to 90度で扱いやすい
+            
+            // 値を正規化し、動きの範囲を制限
+            currentGamma = Math.max(-10, Math.min(10, e.gamma || 0)); // -10度から10度の範囲に制限
+            currentBeta = Math.max(-10, Math.min(10, e.beta || 0));   // -10度から10度の範囲に制限
+        }
+
+        // UI要素のパララックスを適用する関数
+        function applyParallax() {
+            uiElements.forEach(item => {
+                const element = item.element;
+                let zOffset = item.initialZ;
+                let currentTransform = element.style.transform; // 現在のtransformを取得
+
+                // 特定の要素はゲームの状態に応じて初期Z値を変える
+                if (item.element === gameOverScreen && !gameOverScreen.classList.contains('visible')) {
+                    // ゲームオーバー画面が非表示の時はパララックス適用しないか、Z軸を奥にする
+                    // transformはtransitionで制御しているので、ここでは変更しない
+                    return; 
+                }
+                if (item.element === startScreen && startScreen.classList.contains('hidden')) {
+                    // スタート画面が非表示の時はパララックス適用しない
+                    // transformはtransitionで制御しているので、ここでは変更しない
+                    return;
+                }
+
+                // shootButtonの特殊処理 (translateX(-50%)を維持)
+                let baseTransform = "";
+                if (item.isButton) {
+                    baseTransform = "translateX(-50%)";
+                    // ボタンのアクティブ状態はCSSで制御するため、JavaScriptでのZ軸操作はしない
+                    if (shootButton.classList.contains('active')) {
+                        zOffset = 40; // 例: アクティブ時はZ軸が手前
+                    } else if (shootButton.classList.contains('cooldown')) {
+                        zOffset = 45; // 例: クールダウン時はZ軸が少し奥
+                    } else {
+                        zOffset = item.initialZ;
+                    }
+                } else {
+                    // その他の要素は元の位置が0,0なのでそのまま
+                }
+                
+                // 傾きに応じた移動量
+                const moveX = -currentGamma * item.parallaxFactor; // 傾きに反比例してUIを動かす
+                const moveY = -currentBeta * item.parallaxFactor;  // 傾きに反比例してUIを動かす
+
+                // transformを設定
+                element.style.transform = `${baseTransform} translate3d(${moveX}px, ${moveY}px, ${zOffset}px)`;
+            });
+
+            // レーダーキャンバスは中央が基準なので特殊処理
+            const radarMoveX = currentGamma * uiElements[uiElements.length - 1].parallaxFactor;
+            const radarMoveY = currentBeta * uiElements[uiElements.length - 1].parallaxFactor;
+            const radarZ = uiElements[uiElements.length - 1].initialZ;
+            canvas.style.transform = `translate3d(${radarMoveX}px, ${radarMoveY}px, ${radarZ}px)`;
+
+            requestAnimationFrame(applyParallax); // 次のフレームで再度更新
+        }
+
 
         function spawnEnemy() {
             if (isGameOver) return;
@@ -520,7 +642,16 @@
             if (comboCount > 0 && performance.now() - lastKillTime > COMBO_RESET_TIME) {
                 comboCount = 0;
                 comboDisplay.classList.remove("active");
-                comboDisplay.textContent = "";
+                // コンボ表示が消えるときもヌルッと
+                comboDisplay.style.transition = 'opacity 0.5s ease-out, transform 0.5s ease-in';
+                comboDisplay.style.opacity = '0';
+                // パララックスと競合しないよう、transition終了後にtransformをリセット
+                comboDisplay.style.transform = `translateY(20px) scale(0.8) translateZ(${uiElements[1].initialZ}px)`; 
+                setTimeout(() => {
+                    comboDisplay.textContent = "";
+                    // 元のtransitionに戻す
+                    comboDisplay.style.transition = 'opacity 0.3s ease-out, transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+                }, 500); // アニメーション終了後にテキストをクリア
             }
         }
 
@@ -597,29 +728,6 @@
             });
         }
 
-        function detectEnemy() {
-            if (isGameOver) return;
-            const detectionAngleRange = 0.2; // 検出角度範囲
-
-            enemies.forEach(e => {
-                const diff = Math.abs(normalizeAngle(e.angle - playerAngle));
-
-                if (diff < detectionAngleRange) {
-                    let vibPattern;
-                    if (e.distance < 60) {
-                        vibPattern = [80, 40, 80]; // 非常に近い敵：強く短い振動を繰り返す
-                    } else if (e.distance < 120) {
-                        vibPattern = [50, 30, 50]; // 中距離の敵：やや弱い振動を繰り返す
-                    } else if (e.distance < 200) {
-                        vibPattern = [30]; // 遠い敵：単発の弱い振動
-                    } else {
-                        vibPattern = [10]; // 非常に遠い敵：ごく弱い振動
-                    }
-                    vibrateDevice(vibPattern);
-                }
-            });
-        }
-
         function normalizeAngle(angle) {
             return Math.atan2(Math.sin(angle), Math.cos(angle));
         }
@@ -628,7 +736,6 @@
             if (isGameOver) return;
             updateEnemies();
             drawRadar();
-            detectEnemy();
             requestAnimationFrame(gameLoop);
         }
 
@@ -647,7 +754,7 @@
             effect.className = "hit-effect";
             effect.style.left = `${x}px`;
             effect.style.top = `${y}px`;
-            effect.style.width = effect.style.height = `40px`; // 少し大きく
+            effect.style.width = effect.style.height = `40px`; 
             document.body.appendChild(effect);
             setTimeout(() => effect.remove(), 300);
         }
@@ -656,13 +763,13 @@
             const popup = document.createElement("div");
             popup.className = "score-popup";
             popup.textContent = `+${value}`;
-            if (combo > 1) { // コンボが2以上なら表示
+            if (combo > 1) { 
                 popup.textContent += ` (${combo}x)`;
             }
             popup.style.left = `${x}px`;
             popup.style.top = `${y}px`;
             document.body.appendChild(popup);
-            setTimeout(() => popup.remove(), 900); // アニメーション時間に合わせて調整
+            setTimeout(() => popup.remove(), 900); 
         }
 
         function updateScore(points) {
@@ -680,6 +787,15 @@
             if (enemySpawnInterval) clearInterval(enemySpawnInterval);
             finalScore.textContent = `FINAL SCORE: ${score}`;
             gameOverScreen.classList.add("visible");
+            // ゲームオーバー画面もパララックス対象になるように更新
+            const gameOverItem = uiElements.find(item => item.element === gameOverScreen);
+            if (gameOverItem) {
+                gameOverItem.initialZ = 150; // visibleクラスでZ軸アニメーションするので、ここでは初期値を設定し直す
+                // transitionが終了した後にパララックスを開始する
+                setTimeout(() => {
+                     gameOverItem.parallaxFactor = 0.2; // アニメーション終了後に有効化
+                }, 600); // transition時間と同じ
+            }
         }
 
 
@@ -691,9 +807,22 @@
             vibrateDevice([20, 10, 20]); // ショット時の振動 (短く鋭い)
 
             shootButtonIcon.classList.add('bounce');
+            // shootButtonも一時的にtransformを固定する (CSSアニメーションとJSパララックスの競合回避)
+            const originalTransform = shootButton.style.transform;
+            shootButton.style.transition = 'none'; // パララックスによる遷移を一時停止
+            shootButton.style.transform = `${shootButton.style.transform.split(' translate3d')[0]} translateZ(40px) scale(0.97)`;
+
             setTimeout(() => {
                 shootButtonIcon.classList.remove('bounce');
-            }, 150); // アニメーション時間に合わせて調整
+                // アニメーション終了後にパララックスを再開
+                shootButton.style.transition = ''; // transitionを戻す
+                // shootButtonのtransformはapplyParallaxで更新されるため、ここではZ軸の初期値に戻すのみ
+                const shootBtnItem = uiElements.find(item => item.element === shootButton);
+                if (shootBtnItem) {
+                    shootBtnItem.initialZ = 50; 
+                }
+
+            }, 150); 
 
             shootCooldown = true;
             shootButton.classList.add("cooldown");
@@ -734,9 +863,18 @@
                             if (comboCount % 3 === 0) { 
                                 vibrateDevice([30, 20, 30]); 
                             }
+                            // コンボ音階が上がる演出 (例: 250Hz, 300Hz, 350Hz...)
+                            generateSound(800 + comboCount * 50, 0.08, 'triangle', 0.6); 
                         } else {
                             comboDisplay.classList.remove("active");
-                            comboDisplay.textContent = "";
+                            // コンボ表示が消えるときもヌルッと
+                            comboDisplay.style.transition = 'opacity 0.5s ease-out, transform 0.5s ease-in';
+                            comboDisplay.style.opacity = '0';
+                            comboDisplay.style.transform = `translateY(20px) scale(0.8) translateZ(${uiElements[1].initialZ}px)`; 
+                            setTimeout(() => {
+                                comboDisplay.textContent = "";
+                                comboDisplay.style.transition = 'opacity 0.3s ease-out, transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+                            }, 500); 
                         }
 
 
@@ -765,6 +903,8 @@
 
         window.onload = () => {
             startScreen.classList.remove('hidden');
+            // 初期パララックス適用を開始
+            applyParallax();
         };
 
         startScreen.addEventListener('click', requestDeviceOrientationPermissionAndStartGame);
@@ -772,12 +912,6 @@
         window.addEventListener('resize', () => {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
-            // リサイズ時に中央座標を再計算
-            // cx = canvas.width / 2; // こちらはconstなので再代入不可
-            // cy = canvas.height / 2; // こちらもconstなので再代入不可
-            // gameLoop内でcx, cyを使用しているため、問題はないが、
-            // もしplayerX, playerYをリサイズ時に画面中央にしたい場合は
-            // playerX = canvas.width / 2; playerY = canvas.height / 2; を追加
         });
 
     </script>
