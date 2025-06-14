@@ -6,12 +6,6 @@
     <title>Haptic Dot Shooter</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
-        :root {
-            /* 傾きに応じたUIの動きを制御するCSS変数 */
-            --tilt-x: 0px; /* 左右の傾きに応じたX方向の移動量 */
-            --tilt-y: 0px; /* 前後の傾きに応じたY方向の移動量 */
-        }
-
         body {
             margin: 0;
             background: linear-gradient(135deg, #f0f2f5, #e0e5ec);
@@ -27,17 +21,6 @@
             user-select: none;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
-            
-            /* 3D表現の基盤: perspective をbodyまたは親要素に設定 */
-            perspective: 1000px; /* 奥行きの知覚に影響 */
-            transform-style: preserve-3d; /* 子要素の3D変換を保持 */
-            transition: transform 0.1s ease-out; /* 全体の傾き変化を滑らかに */
-        }
-
-        /* 全体の傾きに合わせてUI要素を動かすためのクラス */
-        .parallax-element {
-            position: absolute; /* absoluteまたはfixedで配置 */
-            transition: transform 0.1s ease-out; /* 個別の動きを滑らかに */
         }
 
         #radarCanvas {
@@ -45,49 +28,61 @@
             height: 100vh;
             touch-action: none;
             display: block;
+            position: absolute;
             top: 0;
             left: 0;
             z-index: 1;
             background: radial-gradient(circle at center, rgba(100, 100, 100, 0.03) 0%, rgba(0, 0, 0, 0) 70%);
-            /* レーダー自体も少し奥に配置し、傾きに反応させる */
-            transform: translateZ(-100px) translateX(calc(var(--tilt-x) * -0.5px)) translateY(calc(var(--tilt-y) * -0.5px)); 
         }
+
+        /* 車両モーションキューのドットのスタイル */
+        .motion-cue-dot {
+            position: fixed;
+            width: 12px; /* ドットのサイズを少し大きく */
+            height: 12px;
+            background-color: rgba(0, 122, 255, 0.6); /* Apple Blueで強調 */
+            border-radius: 50%;
+            z-index: 2; /* レーダーより手前 */
+            opacity: 0.8;
+            transition: transform 0.05s linear; /* 動きを滑らかに */
+            box-shadow: 0 0 8px rgba(0, 122, 255, 0.3); /* 薄い影 */
+        }
+        #dotTopLeft { top: 20px; left: 20px; }
+        #dotTopRight { top: 20px; right: 20px; }
+        #dotBottomLeft { bottom: 20px; left: 20px; }
+        #dotBottomRight { bottom: 20px; right: 20px; }
+
 
         #shootButton {
             position: fixed;
-            bottom: 40px; 
+            bottom: 40px;
             left: 50%;
-            transform-style: preserve-3d; /* 子要素の3D変換を保持 */
-            /* 手前に浮かせ、奥行きを明確にし、傾きに反応させる */
-	    transform: translateX(calc(-50% + var(--tilt-x) * 1.5px)) translateZ(50px) translateY(calc(var(--tilt-y) * 1.5px));
+            transform: translateX(-50%);
             width: 80%;
             max-width: 400px;
             height: 70px;
-            border-radius: 35px; 
+            border-radius: 35px;
             
-            /* Liquid Glass スタイル */
-            background: rgba(255, 255, 255, 0.15); /* 透明度をやや下げる */
-            backdrop-filter: blur(20px) saturate(1.2); /* ブラーと彩度を強調 */
-            -webkit-backdrop-filter: blur(20px) saturate(1.2);
-            border: 1px solid rgba(255, 255, 255, 0.7); /* ボーダーを強調 */
-            border-bottom-color: rgba(255, 255, 255, 0.3); 
-            border-right-color: rgba(255, 255, 255, 0.3); 
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            border-bottom-color: rgba(255, 255, 255, 0.2);
+            border-right-color: rgba(255, 255, 255, 0.2);
             
             color: #555;
-            font-size: 1.6rem; 
+            font-size: 1.6rem;
             font-weight: 600;
             
-            /* 影を多層化し、奥行きを強調 */
-            box-shadow: 
-                0 25px 50px rgba(0, 0, 0, 0.25), /* 大きく、ぼやけた影で浮遊感 */
-                0 0 0 1.5px rgba(255, 255, 255, 0.95) inset, /* 強い内側ハイライト */
-                0 0 0 3px rgba(255, 255, 255, 0.6) inset; /* 柔らかい内側ハイライト */
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15),
+                        0 0 0 1.5px rgba(255, 255, 255, 0.9) inset,
+                        0 0 0 3px rgba(255, 255, 255, 0.5) inset;
             
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.1s ease-out; /* transformの遷移も追加 */
+            transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
             cursor: pointer;
             outline: none;
             z-index: 10;
@@ -99,26 +94,22 @@
             line-height: 1;
             color: rgba(0, 122, 255, 0.8);
             transition: transform 0.1s ease-out, color 0.1s ease-out;
-            transform: translateZ(5px); /* アイコンも少し浮かす */
         }
 
         #shootButton:not(.cooldown):active {
-            /* 押し込み時にZ軸も手前に、傾きも考慮 */
- 	   transform: translateX(calc(-50% + var(--tilt-x) * 1.5px)) translateZ(40px) scale(0.97) translateY(calc(var(--tilt-y) * 1.5px));
-            /* アクティブ時の影を調整 */
-            box-shadow: 
-                0 10px 20px rgba(0, 0, 0, 0.15),
-                0 0 0 1px rgba(255, 255, 255, 0.85) inset,
-                0 0 0 2px rgba(255, 255, 255, 0.5) inset;
+            transform: translateX(-50%) scale(0.97);
+            box-shadow: 0 6px 25px rgba(0, 0, 0, 0.1),
+                        0 0 0 1px rgba(255, 255, 255, 0.8) inset,
+                        0 0 0 2px rgba(255, 255, 255, 0.4) inset;
         }
         #shootButton:not(.cooldown) .icon.bounce {
             animation: shootButtonBounce 0.15s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards;
             color: rgba(0, 122, 255, 1);
         }
         @keyframes shootButtonBounce {
-            0% { transform: scale(1) translateZ(5px); }
-            50% { transform: scale(1.1) translateZ(10px); } /* より大きく浮き上がる */
-            100% { transform: scale(1) translateZ(5px); }
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); }
         }
 
         #shootButton.cooldown {
@@ -127,8 +118,6 @@
             color: rgba(100, 100, 100, 0.5);
             box-shadow: none;
             cursor: not-allowed;
-            /* クールダウン時も少し奥に、傾きも考慮 */
-	    transform: translateX(calc(-50% + var(--tilt-x) * 1.5px)) translateZ(45px) translateY(calc(var(--tilt-y) * 1.5px));
         }
         #shootButton.cooldown .icon {
             color: rgba(100, 100, 100, 0.5);
@@ -143,19 +132,17 @@
             background: linear-gradient(90deg, rgba(0, 122, 255, 0.8), rgba(0, 198, 255, 0.8));
             transform-origin: left;
             animation: cooldownFill linear forwards;
-            transform: translateZ(1px); /* バーも少し浮かす */
         }
         @keyframes cooldownFill {
-            from { transform: scaleX(0) translateZ(1px); }
-            to { transform: scaleX(1) translateZ(1px); }
+            from { transform: scaleX(0); }
+            to { transform: scaleX(1); }
         }
 
         .shoot-visual {
             position: absolute;
             background: rgba(0, 122, 255, 0.5);
             border-radius: 50%;
-            /* より手前から発射されるように、傾きも考慮 */
-            transform: translate(-50%, -50%) scale(0) translateZ(20px) translateX(calc(var(--tilt-x) * 0.5px)) translateY(calc(var(--tilt-y) * 0.5px)); 
+            transform: translate(-50%, -50%) scale(0);
             opacity: 0;
             animation: shootVisual 0.3s ease-out forwards;
             pointer-events: none;
@@ -164,36 +151,32 @@
 
         @keyframes shootVisual {
             0% {
-                transform: translate(-50%, -50%) scale(0.3) translateZ(20px) translateX(calc(var(--tilt-x) * 0.5px)) translateY(calc(var(--tilt-y) * 0.5px));
+                transform: translate(-50%, -50%) scale(0.3);
                 opacity: 1;
             }
             100% {
-                /* 画面の奥に広がるように、傾きも考慮 */
-                transform: translate(-50%, -50%) scale(8) translateZ(-50px) translateX(calc(var(--tilt-x) * -0.5px)) translateY(calc(var(--tilt-y) * -0.5px)); 
+                transform: translate(-50%, -50%) scale(8);
                 opacity: 0;
             }
         }
 
         .hit-effect {
             position: absolute;
-            background: radial-gradient(circle, rgba(0, 200, 255, 0.9) 0%, rgba(0, 150, 255, 0.6) 40%, rgba(0, 122, 255, 0) 70%); 
+            background: radial-gradient(circle, rgba(0, 200, 255, 0.9) 0%, rgba(0, 150, 255, 0.6) 40%, rgba(0, 122, 255, 0) 70%);
             border-radius: 50%;
             animation: hitEffect 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
             pointer-events: none;
             z-index: 6;
             transform-origin: center center;
-            /* 敵のヒットも手前で、傾きも考慮 */
-            transform: translateZ(10px) translateX(calc(var(--tilt-x) * 0.2px)) translateY(calc(var(--tilt-y) * 0.2px)); 
         }
 
         @keyframes hitEffect {
             0% {
-                transform: scale(0) translateZ(10px) translateX(calc(var(--tilt-x) * 0.2px)) translateY(calc(var(--tilt-y) * 0.2px));
+                transform: scale(0);
                 opacity: 1;
             }
             100% {
-                /* 爆発が奥に広がる、傾きも考慮 */
-                transform: scale(3.5) translateZ(-20px) translateX(calc(var(--tilt-x) * -0.2px)) translateY(calc(var(--tilt-y) * -0.2px)); 
+                transform: scale(3.5);
                 opacity: 0;
             }
         }
@@ -205,20 +188,16 @@
             opacity: 0;
             animation: particleFade 0.8s ease-out forwards;
             pointer-events: none;
-            z-index: 4; 
-            transform-style: preserve-3d;
-            /* 敵と同じZ軸から、傾きも考慮 */
-            transform: translateZ(0) translateX(calc(var(--tilt-x) * 0.1px)) translateY(calc(var(--tilt-y) * 0.1px)); 
+            z-index: 4;
         }
 
         @keyframes particleFade {
             0% {
-                transform: scale(0.2) translateZ(0) translateX(calc(var(--tilt-x) * 0.1px)) translateY(calc(var(--tilt-y) * 0.1px)); 
+                transform: scale(0.2);
                 opacity: 0.9;
             }
             100% {
-                /* 手前に散る、傾きも考慮 */
-                transform: scale(1.8) translateZ(20px) translateX(calc(var(--tilt-x) * 0.5px)) translateY(calc(var(--tilt-y) * 0.5px)); 
+                transform: scale(1.8);
                 opacity: 0;
             }
         }
@@ -234,38 +213,32 @@
             pointer-events: none;
             z-index: 7;
             text-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
-            transform-style: preserve-3d; /* 3D空間で動かす */
-            /* 撃破時と同じZ軸から、傾きも考慮 */
-            transform: translateZ(10px) translateX(calc(var(--tilt-x) * 0.3px)) translateY(calc(var(--tilt-y) * 0.3px)); 
         }
 
         @keyframes scoreFadeOut {
             0% {
-                transform: translateY(0) scale(1) translateZ(10px) translateX(calc(var(--tilt-x) * 0.3px)) translateY(calc(var(--tilt-y) * 0.3px)); 
+                transform: translateY(0) scale(1);
                 opacity: 1;
             }
             20% {
-                transform: translateY(-15px) scale(1.1) translateZ(20px) translateX(calc(var(--tilt-x) * 0.5px)) translateY(calc(var(--tilt-y) * 0.5px)); 
+                transform: translateY(-15px) scale(1.1);
             }
             100% {
-                transform: translateY(-50px) scale(0.7) translateZ(30px) translateX(calc(var(--tilt-x) * 0.8px)) translateY(calc(var(--tilt-y) * 0.8px)); 
+                transform: translateY(-50px) scale(0.7);
                 opacity: 0;
             }
         }
 
         #scoreDisplay {
             position: fixed;
-            top: 25px; 
-            left: 25px; 
+            top: 25px;
+            left: 25px;
             font-size: 3rem;
             font-weight: 700;
             color: #333;
             text-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
             z-index: 10;
             font-family: inherit;
-            /* スコアも手前に浮かす、傾きに反応させる */
-            transform: translateZ(20px) translateX(calc(var(--tilt-x) * 0.8px)) translateY(calc(var(--tilt-y) * 0.8px)); 
-            transition: transform 0.1s ease-out; /* 個別の動きを滑らかに */
         }
 
         #comboDisplay {
@@ -279,16 +252,13 @@
             z-index: 10;
             font-family: inherit;
             opacity: 0;
-            transform-style: preserve-3d;
-            /* 最初は少し下から小さく、手前に、傾きも考慮 */
-            transform: translateY(20px) scale(0.8) translateZ(15px) translateX(calc(var(--tilt-x) * 0.6px)) translateY(calc(var(--tilt-y) * 0.6px)); 
+            transform: translateY(20px) scale(0.8);
             transition: opacity 0.3s ease-out, transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
 
         #comboDisplay.active {
             opacity: 1;
-            /* アクティブ時はより手前に浮き上がる、傾きも考慮 */
-            transform: translateY(0) scale(1) translateZ(25px) translateX(calc(var(--tilt-x) * 1px)) translateY(calc(var(--tilt-y) * 1px)); 
+            transform: translateY(0) scale(1);
         }
 
         #gameOverScreen {
@@ -297,9 +267,9 @@
             left: 0;
             width: 100vw;
             height: 100vh;
-            background: rgba(255, 255, 255, 0.7); /* 透明度をさらに下げる */
-            backdrop-filter: blur(35px) saturate(1.3); /* ぼかしと彩度をさらに強化 */
-            -webkit-backdrop-filter: blur(35px) saturate(1.3);
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(25px) saturate(1.2);
+            -webkit-backdrop-filter: blur(25px) saturate(1.2);
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -309,72 +279,56 @@
             z-index: 100;
             opacity: 0;
             visibility: hidden;
-            transition: opacity 0.6s ease-in-out, transform 0.6s ease-in-out;
+            transition: opacity 0.6s ease-in-out;
             border-radius: 16px;
-            transform-style: preserve-3d;
-            /* 最初は少し奥から小さく、傾きも考慮 */
-            transform: translateZ(50px) scale(0.9) translateX(calc(var(--tilt-x) * 0.2px)) translateY(calc(var(--tilt-y) * 0.2px)); 
         }
 
         #gameOverScreen.visible {
             opacity: 1;
             visibility: visible;
-            /* 目の前に大きく浮かび上がる、傾きも考慮 */
-            transform: translateZ(150px) scale(1) translateX(calc(var(--tilt-x) * 0.5px)) translateY(calc(var(--tilt-y) * 0.5px)); 
         }
 
         #gameOverScreen h2 {
             font-size: 5rem;
             color: rgba(255, 45, 85, 0.9);
             margin-bottom: 25px;
-            text-shadow: 0 0 20px rgba(255, 45, 85, 0.5); /* 影をさらに強調 */
+            text-shadow: 0 0 15px rgba(255, 45, 85, 0.4);
             font-weight: 700;
-            /* タイトルも少し浮かす、傾きに反応させる */
-            transform: translateZ(10px) translateX(calc(var(--tilt-x) * 0.2px)) translateY(calc(var(--tilt-y) * 0.2px)); 
-            transition: transform 0.1s ease-out; /* 個別の動きを滑らかに */
         }
 
         #finalScore {
             font-size: 3.5rem;
             margin-bottom: 50px;
             color: rgba(0, 122, 255, 1);
-            text-shadow: 0 0 15px rgba(0, 123, 255, 0.4);
+            text-shadow: 0 0 10px rgba(0, 123, 255, 0.3);
             font-family: inherit;
             font-weight: 600;
-            /* スコアも少し浮かす、傾きに反応させる */
-            transform: translateZ(5px) translateX(calc(var(--tilt-x) * 0.1px)) translateY(calc(var(--tilt-y) * 0.1px)); 
-            transition: transform 0.1s ease-out; /* 個別の動きを滑らかに */
         }
 
         #restartButton {
             padding: 18px 45px;
-            background: rgba(255, 255, 255, 0.5); /* 透明度を調整 */
-            border: 1px solid rgba(255, 255, 255, 0.9); /* ボーダーを強調 */
-            border-bottom-color: rgba(255, 255, 255, 0.5);
-            border-right-color: rgba(255, 255, 255, 0.5);
+            background: rgba(255, 255, 255, 0.6);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+            border-bottom-color: rgba(255, 255, 255, 0.4);
+            border-right-color: rgba(255, 255, 255, 0.4);
             border-radius: 12px;
             color: rgba(0, 122, 255, 1);
             font-size: 1.8rem;
             font-weight: 700;
             cursor: pointer;
-            transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1), transform 0.1s ease-out; /* transformの遷移も追加 */
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2); /* 影を大きく */
+            transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
             font-family: inherit;
-            transform-style: preserve-3d;
-            /* ボタンも少し浮かす、傾きに反応させる */
-            transform: translateZ(10px) translateX(calc(var(--tilt-x) * 0.3px)) translateY(calc(var(--tilt-y) * 0.3px)); 
         }
 
         #restartButton:hover {
-            background: rgba(255, 255, 255, 0.7);
-            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.25); /* ホバー時の影をさらに強調 */
-            /* より手前へ、より大きく、傾きも考慮 */
-            transform: translateY(-5px) translateZ(20px) translateX(calc(var(--tilt-x) * 0.4px)) translateY(calc(var(--tilt-y) * 0.4px)); 
+            background: rgba(255, 255, 255, 0.8);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+            transform: translateY(-3px);
         }
         #restartButton:active {
-            /* 押し込み時にZ軸も、傾きも考慮 */
-            transform: scale(0.96) translateZ(8px) translateX(calc(var(--tilt-x) * 0.2px)) translateY(calc(var(--tilt-y) * 0.2px)); 
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
+            transform: scale(0.96);
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
         }
 
         /* スタート画面のスタイル */
@@ -384,7 +338,7 @@
             left: 0;
             width: 100vw;
             height: 100vh;
-            background: rgba(0, 0, 0, 0.9); /* 少し透明度を上げる */
+            background: rgba(0, 0, 0, 0.95);
             color: white;
             display: flex;
             flex-direction: column;
@@ -395,17 +349,12 @@
             text-align: center;
             font-family: inherit;
             cursor: pointer;
-            transition: opacity 0.5s ease-out, transform 0.5s ease-out; /* transformの遷移も追加 */
-            transform-style: preserve-3d;
-            /* スタート画面を最も手前に、傾きに反応させる */
-            transform: translateZ(200px) translateX(calc(var(--tilt-x) * 0.5px)) translateY(calc(var(--tilt-y) * 0.5px)); 
+            transition: opacity 0.5s ease-out;
         }
 
         #startScreen.hidden {
             opacity: 0;
             pointer-events: none;
-            /* 奥に引っ込むように消える */
-            transform: translateZ(0px) translateX(calc(var(--tilt-x) * -0.5px)) translateY(calc(var(--tilt-y) * -0.5px)); 
         }
 
         #startScreen p {
@@ -413,30 +362,29 @@
             font-size: 2.8rem;
             font-weight: 700;
             color: #f0f0f0;
-            /* テキストも浮かす、傾きに反応させる */
-            transform: translateZ(5px) translateX(calc(var(--tilt-x) * 0.1px)) translateY(calc(var(--tilt-y) * 0.1px)); 
-            transition: transform 0.1s ease-out; /* 個別の動きを滑らかに */
         }
 
         #startScreen span {
             font-size: 1.3rem;
             opacity: 0.85;
             color: #ccc;
-            /* テキストも浮かす、傾きに反応させる */
-            transform: translateZ(2px) translateX(calc(var(--tilt-x) * 0.05px)) translateY(calc(var(--tilt-y) * 0.05px)); 
-            transition: transform 0.1s ease-out; /* 個別の動きを滑らかに */
         }
 
     </style>
 </head>
 <body>
     <canvas id="radarCanvas"></canvas>
+    <div id="dotTopLeft" class="motion-cue-dot"></div>
+    <div id="dotTopRight" class="motion-cue-dot"></div>
+    <div id="dotBottomLeft" class="motion-cue-dot"></div>
+    <div id="dotBottomRight" class="motion-cue-dot"></div>
+
     <button id="shootButton">
         <span class="icon">●</span>
         <div class="cooldown-bar"></div>
     </button>
     <div id="scoreDisplay">0</div>
-    <div id="comboDisplay"></div> 
+    <div id="comboDisplay"></div>
     <div id="gameOverScreen">
         <h2>GAME OVER</h2>
         <div id="finalScore">FINAL SCORE: 0</div>
@@ -461,6 +409,12 @@
         const restartButton = document.getElementById("restartButton");
         const startScreen = document.getElementById("startScreen");
 
+        // 車両モーションキューのドット要素
+        const dotTopLeft = document.getElementById('dotTopLeft');
+        const dotTopRight = document.getElementById('dotTopRight');
+        const dotBottomLeft = document.getElementById('dotBottomLeft');
+        const dotBottomRight = document.getElementById('dotBottomRight');
+
         canvas.width = window.innerWidth;
         canvas.height = window.innerHeight;
 
@@ -479,6 +433,7 @@
 
         let audioContext;
 
+        // バイブレーション関数を抽象化
         function vibrateDevice(pattern) {
             if (navigator.vibrate) {
                 navigator.vibrate(pattern);
@@ -524,11 +479,14 @@
                 audioContext = new (window.AudioContext || window.webkitAudioContext)();
             }
 
+            // ジャイロセンサー（DeviceOrientationEvent）の許可リクエスト
             if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
                 DeviceOrientationEvent.requestPermission()
                     .then(permissionState => {
                         if (permissionState === 'granted') {
                             window.addEventListener("deviceorientation", handleDeviceOrientation);
+                            // 加速度センサー（DeviceMotionEvent）の許可リクエスト
+                            requestDeviceMotionPermission();
                             startScreen.classList.add('hidden');
                             initGame();
                         } else {
@@ -540,35 +498,59 @@
                         alert('ジャイロセンサーの許可リクエスト中にエラーが発生しました。お使いのデバイスが対応しているか確認してください。');
                     });
             } else {
-                // DeviceOrientationEvent.requestPermission がない環境 (iOS以外のブラウザなど)
+                // DeviceOrientationEvent.requestPermission がない環境（Androidなど）
                 window.addEventListener("deviceorientation", handleDeviceOrientation);
+                // 加速度センサー（DeviceMotionEvent）のイベントリスナーを直接追加
+                window.addEventListener("devicemotion", handleDeviceMotion);
                 startScreen.classList.add('hidden');
                 initGame();
             }
         }
 
-        let currentTiltX = 0;
-        let currentTiltY = 0;
-        const TILT_SMOOTHING_FACTOR = 0.1; // 0から1の間。値が小さいほど滑らか
-
-        function handleDeviceOrientation(e) {
-            // gamma: Y軸周りの回転 (左右の傾き)
-            // beta: X軸周りの回転 (前後の傾き)
-            if (e.gamma !== null && e.beta !== null) {
-                // プレイヤーの角度はalphaを使用 (水平方向の回転)
-                playerAngle = -e.alpha * Math.PI / 180;
-
-                // UIのパララックス効果のためにgammaとbetaを使用
-                // 傾きをピクセル値に変換し、動きの強さを調整 (例: 0.5で半分の動き)
-                // スムージングを適用
-                currentTiltX += (e.gamma - currentTiltX) * TILT_SMOOTHING_FACTOR;
-                currentTiltY += (e.beta - currentTiltY) * TILT_SMOOTHING_FACTOR;
-
-                // CSS変数に設定
-                document.body.style.setProperty('--tilt-x', `${currentTiltX * 0.5}px`); // 左右の傾き
-                document.body.style.setProperty('--tilt-y', `${currentTiltY * 0.5}px`); // 前後の傾き
+        // 加速度センサー（DeviceMotionEvent）の許可リクエスト関数
+        function requestDeviceMotionPermission() {
+            if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+                DeviceMotionEvent.requestPermission()
+                    .then(permissionState => {
+                        if (permissionState === 'granted') {
+                            window.addEventListener("devicemotion", handleDeviceMotion);
+                        } else {
+                            console.warn('加速度センサーの利用が拒否されました。車両モーションキュー機能は制限されます。');
+                        }
+                    })
+                    .catch(error => {
+                        console.error("DeviceMotionEvent.requestPermission error:", error);
+                        console.warn('加速度センサーの許可リクエスト中にエラーが発生しました。車両モーションキュー機能は制限されます。');
+                    });
+            } else {
+                // DeviceMotionEvent.requestPermission がない環境では直接イベントリスナーを追加
+                window.addEventListener("devicemotion", handleDeviceMotion);
             }
         }
+
+        function handleDeviceOrientation(e) {
+            if (e.alpha !== null) {
+                playerAngle = -e.alpha * Math.PI / 180;
+            }
+        }
+
+        // --- 車両モーションキューの機能 ---
+        function handleDeviceMotion(e) {
+            if (e.accelerationIncludingGravity) {
+                const accX = e.accelerationIncludingGravity.x;
+                const accY = e.accelerationIncludingGravity.y;
+
+                // 加速度に基づいてドットの位置を微調整する
+                // 値は調整してください。デバイスの感度によって適切な範囲が変わります。
+                const sensitivity = 5; // ドットの動きの感度
+
+                dotTopLeft.style.transform = `translate(${accX * sensitivity}px, ${accY * sensitivity}px)`;
+                dotTopRight.style.transform = `translate(${-accX * sensitivity}px, ${accY * sensitivity}px)`;
+                dotBottomLeft.style.transform = `translate(${accX * sensitivity}px, ${-accY * sensitivity}px)`;
+                dotBottomRight.style.transform = `translate(${-accX * sensitivity}px, ${-accY * sensitivity}px)`;
+            }
+        }
+        // ---------------------------------
 
         function spawnEnemy() {
             if (isGameOver) return;
@@ -608,7 +590,7 @@
                 comboDisplay.classList.remove("active");
                 comboDisplay.style.transition = 'opacity 0.5s ease-out, transform 0.5s ease-in';
                 comboDisplay.style.opacity = '0';
-                comboDisplay.style.transform = 'translateY(20px) scale(0.8) translateZ(15px) translateX(calc(var(--tilt-x) * 0.6px)) translateY(calc(var(--tilt-y) * 0.6px))'; // 消える時もZ軸を考慮
+                comboDisplay.style.transform = 'translateY(20px) scale(0.8)';
                 setTimeout(() => {
                     comboDisplay.textContent = "";
                     comboDisplay.style.transition = 'opacity 0.3s ease-out, transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
@@ -798,7 +780,7 @@
                             comboDisplay.classList.remove("active");
                             comboDisplay.style.transition = 'opacity 0.5s ease-out, transform 0.5s ease-in';
                             comboDisplay.style.opacity = '0';
-                            comboDisplay.style.transform = 'translateY(20px) scale(0.8) translateZ(15px) translateX(calc(var(--tilt-x) * 0.6px)) translateY(calc(var(--tilt-y) * 0.6px))';
+                            comboDisplay.style.transform = 'translateY(20px) scale(0.8)';
                             setTimeout(() => {
                                 comboDisplay.textContent = "";
                                 comboDisplay.style.transition = 'opacity 0.3s ease-out, transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
@@ -836,9 +818,9 @@
         window.addEventListener('resize', () => {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
-            // リサイズ時にも現在の傾きを再適用することで、パララックスのズレを防ぐ
-            document.body.style.setProperty('--tilt-x', `${currentTiltX * 0.5}px`);
-            document.body.style.setProperty('--tilt-y', `${currentTiltY * 0.5}px`);
+            // リサイズ時に中央座標を再計算
+            cx = canvas.width / 2;
+            cy = canvas.height / 2;
         });
 
     </script>
