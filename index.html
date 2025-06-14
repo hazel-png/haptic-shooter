@@ -8,7 +8,8 @@
     <style>
         body {
             margin: 0;
-            background: linear-gradient(135deg, #a8e063, #56ab2f);
+            /* 背景を緑系のグラデーションに変更 - 外側に向かって影のようなグラデーションを追加 */
+            background: radial-gradient(circle at center, #a8e063 0%, #56ab2f 50%, #3a751f 100%);
             overflow: hidden;
             font-family: -apple-system, BlinkMacSystemFont, "SF Pro", 'Inter', sans-serif;
             color: #333;
@@ -31,13 +32,14 @@
             top: 0;
             left: 0;
             z-index: 1;
+            /* レーダーの背景を透明に近い緑に変更 */
             background: radial-gradient(circle at center, rgba(140, 200, 100, 0.05) 0%, rgba(0, 0, 0, 0) 70%);
             transform: translateZ(-100px);
         }
 
         .shoot-visual {
             position: absolute;
-            background: rgba(255, 255, 255, 0.5);
+            background: rgba(255, 255, 255, 0.5); /* 発射エフェクトの色を白に変更 */
             border-radius: 50%;
             transform: translate(-50%, -50%) scale(0) translateZ(25px);
             opacity: 0;
@@ -59,6 +61,7 @@
 
         .hit-effect {
             position: absolute;
+            /* ヒットエフェクトの色を白ベースに変更 */
             background: radial-gradient(circle, rgba(255, 255, 255, 0.9) 0%, rgba(220, 220, 220, 0.6) 40%, rgba(255, 255, 255, 0) 70%);
             border-radius: 50%;
             animation: hitEffect 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
@@ -81,7 +84,7 @@
 
         .enemy-particle {
             position: absolute;
-            background: rgba(0, 0, 0, 0.9);
+            background: rgba(0, 0, 0, 0.9); /* 敵のパーティクルの色を黒に変更 */
             border-radius: 50%;
             opacity: 0;
             animation: particleFade 0.8s ease-out forwards;
@@ -103,7 +106,7 @@
 
         .score-popup {
             position: absolute;
-            color: rgba(255, 255, 255, 1);
+            color: rgba(255, 255, 255, 1); /* スコアポップアップの色を白に変更 */
             font-size: clamp(1rem, 4.5vw, 1.6rem);
             font-weight: 700;
             font-family: inherit;
@@ -131,11 +134,11 @@
 
         #scoreDisplay {
             position: fixed;
-            top: 2.5vh;
-            left: 4vw;
+            top: 2.5vh; /* 調整 */
+            left: 4vw; /* 調整 */
             font-size: clamp(2rem, 8vw, 3.5rem);
             font-weight: 700;
-            color: #1a4d00;
+            color: #1a4d00; /* スコア表示の色を濃い緑に変更 */
             text-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
             z-index: 10;
             font-family: inherit;
@@ -144,11 +147,11 @@
 
         #comboDisplay {
             position: fixed;
-            top: 9vh;
-            left: 4vw;
+            top: 9vh; /* 調整 */
+            left: 4vw; /* 調整 */
             font-size: clamp(1.5rem, 6vw, 2.5rem);
             font-weight: 700;
-            color: #2e8b57;
+            color: #2e8b57; /* コンボ表示の色を緑に変更 */
             text-shadow: 0 2px 8px rgba(0, 123, 255, 0.2);
             z-index: 10;
             font-family: inherit;
@@ -195,7 +198,7 @@
 
         #gameOverScreen h2 {
             font-size: clamp(3rem, 12vw, 6rem);
-            color: #cc3333;
+            color: #cc3333; /* GAME OVERの色を赤に変更 */
             margin-bottom: 25px;
             text-shadow: 0 0 20px rgba(255, 45, 85, 0.5);
             font-weight: 700;
@@ -204,8 +207,8 @@
 
         #finalScore {
             font-size: clamp(2rem, 8vw, 4rem);
-            margin-bottom: 5vh;
-            color: #2e8b57;
+            margin-bottom: 5vh; /* 調整 */
+            color: #2e8b57; /* 最終スコアの色を緑に変更 */
             text-shadow: 0 0 15px rgba(0, 123, 255, 0.4);
             font-family: inherit;
             font-weight: 600;
@@ -213,13 +216,13 @@
         }
 
         #restartButton {
-            padding: 1.8vh 4.5vw;
+            padding: 1.8vh 4.5vw; /* 調整 */
             background: rgba(255, 255, 255, 0.5);
             border: 1px solid rgba(255, 255, 255, 0.9);
             border-bottom-color: rgba(255, 255, 255, 0.5);
             border-right-color: rgba(255, 255, 255, 0.5);
             border-radius: 12px;
-            color: #2e8b57;
+            color: #2e8b57; /* リスタートボタンの色を緑に変更 */
             font-size: clamp(1.5rem, 5vw, 2.2rem);
             font-weight: 700;
             cursor: pointer;
@@ -263,11 +266,10 @@
             transform: translateZ(200px);
         }
 
-        /* 修正点: hidden クラスに pointer-events: none を追加 */
         #startScreen.hidden {
             opacity: 0;
-            visibility: hidden; /* hidden時に表示も隠す */
-            pointer-events: none; /* イベントを無視 */
+            visibility: hidden;
+            pointer-events: none;
             transform: translateZ(0px);
         }
 
@@ -276,7 +278,7 @@
             font-weight: 700;
             color: #f0f0f0;
             transform: translateZ(8px);
-            margin-bottom: 3.5vh;
+            margin-bottom: 3.5vh; /* 調整 */
         }
 
         #startScreen span {
@@ -403,7 +405,8 @@
 
         function handleDeviceOrientation(e) {
             if (e.alpha !== null) {
-                playerAngle = -e.alpha * Math.PI / 180;
+                // 角度を調整して、画面上部が0度になるようにする
+                playerAngle = (e.alpha - 90) * Math.PI / 180; // 北を上とする場合など調整
             }
         }
 
@@ -467,14 +470,42 @@
         function drawRadar() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            for (let i = 0; i < 60; i++) {
-                ctx.fillStyle = `rgba(255, 255, 255, ${0.01 + Math.random() * 0.03})`;
-                ctx.beginPath();
-                ctx.arc(Math.random() * canvas.width, Math.random() * canvas.height, 0.7, 0, 2 * Math.PI);
-                ctx.fill();
-            }
+            // ① 中心青丸（現在地）
+            const playerRadius = 15;
+            ctx.fillStyle = "#007AFF"; // 鮮やかなブルー
+            ctx.beginPath();
+            ctx.arc(cx, cy, playerRadius, 0, 2 * Math.PI);
+            ctx.fill();
 
-            ctx.strokeStyle = "rgba(255, 255, 255, 0.1)";
+            // ② 青丸を囲む白いリング
+            const ringThickness = 6; // リングの厚み
+            ctx.strokeStyle = "#FFFFFF"; // 白
+            ctx.lineWidth = ringThickness;
+            ctx.beginPath();
+            ctx.arc(cx, cy, playerRadius + ringThickness / 2 + 2, 0, 2 * Math.PI); // 青丸から少し離して描画
+            ctx.stroke();
+
+            // ④ 放射状の扇形ハイライト（上部の青緑ゾーン）
+            const highlightRadius = Math.max(canvas.width, canvas.height) / 2; // 画面全体を覆うように
+            const highlightAngle = Math.PI / 6; // 30度の扇型
+            const startAngle = playerAngle - highlightAngle / 2;
+            const endAngle = playerAngle + highlightAngle / 2;
+
+            const gradient = ctx.createRadialGradient(cx, cy, playerRadius, cx, cy, highlightRadius);
+            gradient.addColorStop(0, "rgba(0, 191, 255, 0.8)"); // 青緑
+            gradient.addColorStop(0.5, "rgba(0, 191, 255, 0.4)");
+            gradient.addColorStop(1, "rgba(0, 191, 255, 0)"); // 透明
+
+            ctx.fillStyle = gradient;
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.arc(cx, cy, highlightRadius, startAngle, endAngle);
+            ctx.closePath();
+            ctx.fill();
+
+
+            // レーダーの円 (変更なし)
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.1)"; /* レーダーの円の色を白に変更 */
             ctx.lineWidth = 0.5;
             for (let i = 1; i <= 5; i++) {
                 ctx.beginPath();
@@ -482,30 +513,19 @@
                 ctx.stroke();
             }
 
-            ctx.fillStyle = "#fff";
-            ctx.beginPath();
-            ctx.arc(cx, cy, 4, 0, 2 * Math.PI);
-            ctx.fill();
-
-            ctx.strokeStyle = "rgba(255, 255, 255, 0.8)";
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(cx, cy);
-            ctx.lineTo(cx + 80 * Math.cos(playerAngle), cy + 80 * Math.sin(playerAngle));
-            ctx.stroke();
-
+            // 敵の描画 (変更なし)
             enemies.forEach(e => {
                 const ex = cx + e.distance * Math.cos(e.angle);
                 const ey = cy + e.distance * Math.sin(e.angle);
-                let enemyColor = "rgba(255, 255, 255, 0.8)";
+                let enemyColor = "rgba(255, 255, 255, 0.8)"; /* 敵の通常時の色を白に変更 */
                 let enemySize = 5;
                 let doBlink = false;
                 if (e.distance < 70) {
-                    enemyColor = "rgba(255, 255, 255, 0.9)";
+                    enemyColor = "rgba(255, 255, 255, 0.9)"; /* 敵が接近時の色を白に変更 */
                     enemySize = 8 + (70 - e.distance) / 7;
                     doBlink = (Math.floor(Date.now() / 100) % 2 === 0);
                 } else if (e.distance < 150) {
-                    enemyColor = "rgba(220, 220, 220, 0.9)";
+                    enemyColor = "rgba(220, 220, 220, 0.9)"; /* 敵が中距離の色を白に近いグレーに変更 */
                     enemySize = 6 + (150 - e.distance) / 20;
                 } else {
                     enemyColor = "rgba(255, 255, 255, 0.8)";
@@ -649,11 +669,9 @@
 
         window.onload = () => {
             setCanvasDimensions();
-            // Start screenは最初は表示されるので、hiddenクラスは付けません。
-            // startScreen.classList.remove('hidden'); // この行は冗長です。
+            // Start screenは初期状態で表示されているため、'hidden'クラスの操作は不要
         };
 
-        // startScreen全体がタップされたときにゲームを開始
         startScreen.addEventListener('click', requestDeviceOrientationPermissionAndStartGame);
 
         window.addEventListener('resize', () => {
