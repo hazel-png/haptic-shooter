@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>Haptic Dot Shooter</title>
+    <title>Haptic Dot Shooter - Advanced Motion Cue</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
         body {
             margin: 0;
             background: linear-gradient(135deg, #f0f2f5, #e0e5ec);
             overflow: hidden;
-            font-family: -apple-system, BlinkMacSystemFont, "SF Pro", 'Inter', sans-serif;
+            font-family: -apple-system, BlinkMacMacSystemFont, "SF Pro", 'Inter', sans-serif;
             color: #333;
             display: flex;
             justify-content: center;
@@ -38,14 +38,14 @@
         /* 車両モーションキューのドットのスタイル */
         .motion-cue-dot {
             position: fixed;
-            width: 12px; /* ドットのサイズを少し大きく */
+            width: 12px;
             height: 12px;
-            background-color: rgba(0, 122, 255, 0.6); /* Apple Blueで強調 */
+            background-color: rgba(0, 122, 255, 0.6);
             border-radius: 50%;
-            z-index: 2; /* レーダーより手前 */
+            z-index: 2;
             opacity: 0.8;
-            transition: transform 0.05s linear; /* 動きを滑らかに */
-            box-shadow: 0 0 8px rgba(0, 122, 255, 0.3); /* 薄い影 */
+            transition: transform 0.05s linear; /* 慣性表現のために、ここでのtransitionは短くか削除 */
+            box-shadow: 0 0 8px rgba(0, 122, 255, 0.3);
         }
         #dotTopLeft { top: 20px; left: 20px; }
         #dotTopRight { top: 20px; right: 20px; }
@@ -420,8 +420,8 @@
 
         let enemies = [];
         let playerAngle = 0;
-        const cx = canvas.width / 2;
-        const cy = canvas.height / 2;
+        let cx = canvas.width / 2; // リサイズ対応のためletに変更
+        let cy = canvas.height / 2; // リサイズ対応のためletに変更
         let score = 0;
         let isGameOver = false;
         let shootCooldown = false;
@@ -432,6 +432,21 @@
         const COMBO_RESET_TIME = 1500;
 
         let audioContext;
+
+        // センサーデータのための変数
+        let lastAcceleration = { x: 0, y: 0, z: 0 };
+        let lastRotationRate = { alpha: 0, beta: 0, gamma: 0 };
+
+        // ローパスフィルターと慣性表現のための変数
+        let filteredAccX = 0, filteredAccY = 0;
+        let currentDotOffsetX = 0, currentDotOffsetY = 0;
+        const LOW_PASS_ALPHA = 0.1; // ローパスフィルターの係数 (0.0 - 1.0, 小さいほど滑らか)
+        const INERTIA_SMOOTHING = 0.15; // 慣性表現の係数 (0.0 - 1.0, 小さいほど慣性が強い)
+
+        // 感度調整のための定数
+        const BASE_SENSITIVITY = 8; // 基本感度
+        const BOOST_THRESHOLD = 0.5; // 増幅を開始する加速度のしきい値 (m/s^2)
+        const BOOST_FACTOR = 1.5; // しきい値を超えた場合の増幅倍率
 
         // バイブレーション関数を抽象化
         function vibrateDevice(pattern) {
@@ -474,81 +489,146 @@
             gameLoop();
         }
 
-        function requestDeviceOrientationPermissionAndStartGame() {
+        function requestDeviceSensorPermissionsAndStartGame() {
             if (!audioContext) {
                 audioContext = new (window.AudioContext || window.webkitAudioContext)();
             }
 
-            // ジャイロセンサー（DeviceOrientationEvent）の許可リクエスト
-            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-                DeviceOrientationEvent.requestPermission()
-                    .then(permissionState => {
-                        if (permissionState === 'granted') {
-                            window.addEventListener("deviceorientation", handleDeviceOrientation);
-                            // 加速度センサー（DeviceMotionEvent）の許可リクエスト
-                            requestDeviceMotionPermission();
-                            startScreen.classList.add('hidden');
-                            initGame();
-                        } else {
-                            alert('ジャイロセンサーの利用が拒否されました。ゲームをプレイできません。ブラウザの設定で許可が必要な場合があります。');
-                        }
-                    })
-                    .catch(error => {
-                        console.error("DeviceOrientationEvent.requestPermission error:", error);
-                        alert('ジャイロセンサーの許可リクエスト中にエラーが発生しました。お使いのデバイスが対応しているか確認してください。');
-                    });
-            } else {
-                // DeviceOrientationEvent.requestPermission がない環境（Androidなど）
-                window.addEventListener("deviceorientation", handleDeviceOrientation);
-                // 加速度センサー（DeviceMotionEvent）のイベントリスナーを直接追加
-                window.addEventListener("devicemotion", handleDeviceMotion);
-                startScreen.classList.add('hidden');
-                initGame();
-            }
-        }
+            // DeviceOrientationEvent (ジャイロ) の許可リクエスト
+            let orientationPermissionGranted = false;
+            let motionPermissionGranted = false;
 
-        // 加速度センサー（DeviceMotionEvent）の許可リクエスト関数
-        function requestDeviceMotionPermission() {
-            if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
-                DeviceMotionEvent.requestPermission()
-                    .then(permissionState => {
-                        if (permissionState === 'granted') {
-                            window.addEventListener("devicemotion", handleDeviceMotion);
-                        } else {
-                            console.warn('加速度センサーの利用が拒否されました。車両モーションキュー機能は制限されます。');
-                        }
-                    })
-                    .catch(error => {
-                        console.error("DeviceMotionEvent.requestPermission error:", error);
-                        console.warn('加速度センサーの許可リクエスト中にエラーが発生しました。車両モーションキュー機能は制限されます。');
-                    });
-            } else {
-                // DeviceMotionEvent.requestPermission がない環境では直接イベントリスナーを追加
-                window.addEventListener("devicemotion", handleDeviceMotion);
-            }
+            const requestOrientation = () => {
+                if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                    DeviceOrientationEvent.requestPermission()
+                        .then(permissionState => {
+                            if (permissionState === 'granted') {
+                                window.addEventListener("deviceorientation", handleDeviceOrientation);
+                                orientationPermissionGranted = true;
+                                checkAllPermissionsGranted();
+                            } else {
+                                alert('ジャイロセンサーの利用が拒否されました。ゲームをプレイできません。ブラウザの設定で許可が必要な場合があります。');
+                            }
+                        })
+                        .catch(error => {
+                            console.error("DeviceOrientationEvent.requestPermission error:", error);
+                            alert('ジャイロセンサーの許可リクエスト中にエラーが発生しました。お使いのデバイスが対応しているか確認してください。');
+                        });
+                } else {
+                    window.addEventListener("deviceorientation", handleDeviceOrientation);
+                    orientationPermissionGranted = true;
+                    checkAllPermissionsGranted();
+                }
+            };
+
+            // DeviceMotionEvent (加速度) の許可リクエスト
+            const requestMotion = () => {
+                if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+                    DeviceMotionEvent.requestPermission()
+                        .then(permissionState => {
+                            if (permissionState === 'granted') {
+                                window.addEventListener("devicemotion", handleDeviceMotion);
+                                motionPermissionGranted = true;
+                                checkAllPermissionsGranted();
+                            } else {
+                                console.warn('加速度センサーの利用が拒否されました。車両モーションキュー機能は制限されます。');
+                                motionPermissionGranted = true; // 拒否されてもゲームは進めるためtrue
+                                checkAllPermissionsGranted();
+                            }
+                        })
+                        .catch(error => {
+                            console.error("DeviceMotionEvent.requestPermission error:", error);
+                            console.warn('加速度センサーの許可リクエスト中にエラーが発生しました。車両モーションキュー機能は制限されます。');
+                            motionPermissionGranted = true; // エラーでもゲームは進めるためtrue
+                            checkAllPermissionsGranted();
+                        });
+                } else {
+                    window.addEventListener("devicemotion", handleDeviceMotion);
+                    motionPermissionGranted = true;
+                    checkAllPermissionsGranted();
+                }
+            };
+
+            const checkAllPermissionsGranted = () => {
+                if (orientationPermissionGranted && motionPermissionGranted) {
+                    startScreen.classList.add('hidden');
+                    initGame();
+                }
+            };
+
+            // 両方の許可をリクエスト
+            requestOrientation();
+            requestMotion();
         }
 
         function handleDeviceOrientation(e) {
             if (e.alpha !== null) {
                 playerAngle = -e.alpha * Math.PI / 180;
             }
+            // ジャイロの角速度も記録 (センサーフュージョン用)
+            if (e.rotationRate) {
+                lastRotationRate.alpha = e.rotationRate.alpha || 0;
+                lastRotationRate.beta = e.rotationRate.beta || 0;
+                lastRotationRate.gamma = e.rotationRate.gamma || 0;
+            }
         }
 
         // --- 車両モーションキューの機能 ---
         function handleDeviceMotion(e) {
-            if (e.accelerationIncludingGravity) {
-                const accX = e.accelerationIncludingGravity.x;
-                const accY = e.accelerationIncludingGravity.y;
+            let accX = 0, accY = 0;
 
-                // 加速度に基づいてドットの位置を微調整する
-                // 値は調整してください。デバイスの感度によって適切な範囲が変わります。
-                const sensitivity = 5; // ドットの動きの感度
-
-                dotTopLeft.style.transform = `translate(${accX * sensitivity}px, ${accY * sensitivity}px)`;
-                dotTopRight.style.transform = `translate(${-accX * sensitivity}px, ${accY * sensitivity}px)`;
-                dotBottomLeft.style.transform = `translate(${accX * sensitivity}px, ${-accY * sensitivity}px)`;
-                dotBottomRight.style.transform = `translate(${-accX * sensitivity}px, ${-accY * sensitivity}px)`;
+            // 1. 重力と動きの分離（accelerationがあれば優先）
+            if (e.acceleration && e.acceleration.x !== null) {
+                // 重力成分を含まない純粋な加速度
+                accX = e.acceleration.x;
+                accY = e.acceleration.y;
+            } else if (e.accelerationIncludingGravity && e.accelerationIncludingGravity.x !== null) {
+                // 重力成分を含む加速度（fallback）
+                accX = e.accelerationIncludingGravity.x;
+                accY = e.accelerationIncludingGravity.y;
             }
+
+            // 2. ローパスフィルター
+            // 前のフレームの値と新しい値を混ぜてノイズを減らす
+            filteredAccX = filteredAccX * (1 - LOW_PASS_ALPHA) + accX * LOW_PASS_ALPHA;
+            filteredAccY = filteredAccY * (1 - LOW_PASS_ALPHA) + accY * LOW_PASS_ALPHA;
+
+            // センサーフュージョンの簡易実装:
+            // 加速度に加えて、ジャイロの角速度も考慮に入れる。
+            // デバイスの回転速度に応じて、ドットの移動量を調整することで、
+            // より動きに即した視覚的なフィードバックを与える。
+            // 例えば、Y軸の回転（beta）は上下の動き、X軸の回転（gamma）は左右の動きに影響させる。
+            const rotationInfluenceX = lastRotationRate.gamma * 0.1; // 係数は調整
+            const rotationInfluenceY = lastRotationRate.beta * 0.1;  // 係数は調整
+
+            let targetOffsetX = filteredAccX + rotationInfluenceX;
+            let targetOffsetY = filteredAccY + rotationInfluenceY;
+
+            // 4. 感度調整の多段階化
+            // 加速度の絶対値に応じて感度を調整
+            const magnitude = Math.sqrt(targetOffsetX * targetOffsetX + targetOffsetY * targetOffsetY);
+            let finalSensitivity = BASE_SENSITIVITY;
+            if (magnitude > BOOST_THRESHOLD) {
+                finalSensitivity += (magnitude - BOOST_THRESHOLD) * BOOST_FACTOR;
+            }
+
+            targetOffsetX *= finalSensitivity;
+            targetOffsetY *= finalSensitivity;
+
+            // 3. 動きの非線形・慣性表現
+            // ドットの現在の位置を目標位置にゆっくりと近づける (イージング)
+            currentDotOffsetX += (targetOffsetX - currentDotOffsetX) * INERTIA_SMOOTHING;
+            currentDotOffsetY += (targetOffsetY - currentDotOffsetY) * INERTIA_SMOOTHING;
+
+            // ドットのスタイルを更新
+            dotTopLeft.style.transform = `translate(${currentDotOffsetX}px, ${currentDotOffsetY}px)`;
+            dotTopRight.style.transform = `translate(${-currentDotOffsetX}px, ${currentDotOffsetY}px)`;
+            dotBottomLeft.style.transform = `translate(${currentDotOffsetX}px, ${-currentDotOffsetY}px)`;
+            dotBottomRight.style.transform = `translate(${-currentDotOffsetX}px, ${-currentDotOffsetY}px)`;
+
+            lastAcceleration.x = accX;
+            lastAcceleration.y = accY;
+            lastAcceleration.z = e.accelerationIncludingGravity ? e.accelerationIncludingGravity.z : 0; // z軸も記録
         }
         // ---------------------------------
 
@@ -813,12 +893,11 @@
             startScreen.classList.remove('hidden');
         };
 
-        startScreen.addEventListener('click', requestDeviceOrientationPermissionAndStartGame);
+        startScreen.addEventListener('click', requestDeviceSensorPermissionsAndStartGame);
 
         window.addEventListener('resize', () => {
             canvas.width = window.innerWidth;
             canvas.height = window.innerHeight;
-            // リサイズ時に中央座標を再計算
             cx = canvas.width / 2;
             cy = canvas.height / 2;
         });
