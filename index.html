@@ -14,7 +14,7 @@
             margin: 0;
             background: #000000; /* 1. ベースは黒やダークトーン */
             overflow: hidden;
-            font-family: -apple-system, BlinkMacMacFont, "SF Pro", 'Inter', sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro", 'Inter', sans-serif;
             color: #E0E0E0;
             display: flex;
             justify-content: center;
@@ -54,7 +54,6 @@
             z-index: 6;
             transform-style: preserve-3d;
             box-shadow: 0 0 5px rgba(255, 255, 255, 0.5);
-            /* filter: blur(0px); */ /* モーションブラーはCanvas描画では難しい */
         }
 
         @keyframes particleExplosion {
@@ -355,7 +354,7 @@
         const startScreen = document.getElementById("startScreen");
 
         let enemies = [];
-        let deviceOrientationOffset = 0;
+        let deviceOrientationOffset = 0; // デバイスの向きオフセット
         let cx;
         let cy;
         let score = 0;
@@ -420,7 +419,7 @@
             comboDisplay.textContent = "";
             comboDisplay.classList.remove("active");
             gameOverScreen.classList.remove("visible");
-            deviceOrientationOffset = 0;
+            deviceOrientationOffset = 0; // リセット
             document.documentElement.style.setProperty('--combo-saturate', '100%'); // 彩度をリセット
 
             if (enemySpawnInterval) clearInterval(enemySpawnInterval);
@@ -491,7 +490,14 @@
         }
 
         function handleDeviceOrientation(e) {
+            // alpha: Z軸周りの回転 (0～360度, 北を0度として時計回り)
+            // beta: X軸周りの回転 (-180～180度, デバイスの前後方向の傾き)
+            // gamma: Y軸周りの回転 (-90～90度, デバイスの左右方向の傾き)
             if (e.alpha !== null) {
+                // デバイスの向きに合わせてレーダー全体を回転
+                // deviceOrientationOffset はレーダーの描画回転に使用される
+                // 標準的なDeviceOrientationEventでは、北が0度で時計回り。
+                // Canvasの回転は反時計回りが正なので、-e.alphaで調整。
                 deviceOrientationOffset = -e.alpha * Math.PI / 180;
             }
         }
@@ -499,21 +505,19 @@
         function handleDeviceMotion(e) {
             if (isGameOver) return;
             const acceleration = e.accelerationIncludingGravity;
-            if (acceleration && acceleration.z) { // Z軸方向の加速度（画面奥方向）を検出
+            if (acceleration && acceleration.y) { // Y軸方向の加速度（デバイスの前後方向）
                 const now = performance.now();
-                if (Math.abs(acceleration.z) > SHAKE_THRESHOLD && (now - lastShakeTime) > SHAKE_COOLDOWN) {
-                    // スマホを上向きに振る（画面が上を向いている前提で、Z軸が減少する方向）
-                    // 実際にはY軸（デバイスの前後方向）や、複合的な動きで判断する方が良い場合も
-                    // 今回はZ軸（画面の表裏方向）の急激な変化で簡易的に検出
-                    if (acceleration.z < -SHAKE_THRESHOLD) { // 画面が上に振られる動き
-                        handleShoot();
-                        lastShakeTime = now;
-                    }
+                // スマホを上に振る（画面上を向いている前提で、Y軸が減少する方向）
+                // 加速度計のY軸は通常、デバイスの縦方向。
+                // 画面が上を向いている場合、デバイスを「前方に突き出す」ように振るとY軸はマイナスになる。
+                if (acceleration.y < -SHAKE_THRESHOLD && (now - lastShakeTime) > SHAKE_COOLDOWN) {
+                    handleShoot();
+                    lastShakeTime = now;
                 }
             }
         }
 
-        // 2. 敵の色は色相環的に配置 - 角度からHSL色を生成するヘルパー関数
+        // 敵の色は色相環的に配置 - 角度からHSL色を生成するヘルパー関数
         function getHslColorFromAngle(angle) {
             const hue = (angle / (2 * Math.PI)) * 360; // 0-360度の色相
             const saturation = 100; // 彩度は高めに
@@ -524,7 +528,8 @@
         function spawnEnemy() {
             if (isGameOver) return;
             const angle = Math.random() * 2 * Math.PI;
-            const initialDistance = Math.max(window.innerWidth, window.innerHeight) / 2 * 1.2;
+            // 敵はゾーンの外にスポーン
+            const initialDistance = attackZoneRadius * 1.5 + Math.random() * (Math.min(canvas.width, canvas.height) * 0.4 - attackZoneRadius * 1.5 + 50); // ゾーンの外側のランダムな距離
             enemies.push({
                 angle: angle,
                 distance: initialDistance,
@@ -533,7 +538,9 @@
                 isApproaching: false,
                 isTargeted: false,
                 initialColor: getHslColorFromAngle(angle), // 初期色を設定
-                canBeAttacked: false // 2. 敵の挙動と攻撃可否 - 初期は攻撃不可
+                canBeAttacked: false, // 初期は攻撃不可
+                currentSaturation: 10, // ゾーン外の彩度
+                currentBlur: 1 // ゾーン外のぼかし
             });
         }
 
@@ -542,22 +549,32 @@
                 e.distance -= e.speed;
 
                 // 2. 敵の挙動と攻撃可否: ゾーンを突破し内側に入った瞬間に彩度がスムーズに上がり、攻撃可能になる
-                if (!e.canBeAttacked && e.distance <= attackZoneRadius) {
-                    e.canBeAttacked = true;
-                    // 4. 視覚・UIの連動演出：攻撃可能になる瞬間にバイブレーション
-                    vibrateDevice([50]); // 短い振動
-                    generateSound(600, 0.08, 'triangle', 0.4); // ポップな音
+                if (e.distance <= attackZoneRadius) {
+                    if (!e.canBeAttacked) {
+                        e.canBeAttacked = true;
+                        // 4. 視覚・UIの連動演出：攻撃可能になる瞬間にバイブレーション
+                        vibrateDevice([50]); // 短い振動
+                        generateSound(600, 0.08, 'triangle', 0.4); // ポップな音
+                    }
+                    // ゾーン内では彩度MAX、ぼかしなしへスムーズに移行
+                    e.currentSaturation = Math.min(100, e.currentSaturation + 5); // 緩やかに彩度を上げる
+                    e.currentBlur = Math.max(0, e.currentBlur - 0.1); // 緩やかにぼかしを解除
+
+                } else { // ゾーン外
+                    e.canBeAttacked = false;
+                    e.currentSaturation = Math.max(10, e.currentSaturation - 5); // 緩やかに彩度を下げる
+                    e.currentBlur = Math.min(1, e.currentBlur + 0.1); // 緩やかにぼかしを適用
                 }
                 
                 // 5. 危険度は振動＋明るさで示す
-                if (e.distance < attackZoneRadius * 0.7 && !e.isApproaching) { // ゾーン内の危険な距離
+                if (e.distance < 15 && !e.isApproaching) { // ゾーンのさらに内側（プレイヤーに近い）
                     e.isApproaching = true;
                     vibrateDevice([30, 20, 30]); // 振動
                     generateSound(440, 0.05, 'sawtooth', 0.3);
                 }
             });
             enemies = enemies.filter(e => {
-                if (e.distance <= 15) {
+                if (e.distance <= 15) { // プレイヤーに到達
                     endGame();
                     return false;
                 }
@@ -615,6 +632,7 @@
 
             ctx.save();
             ctx.translate(cx, cy);
+            // レーダー全体はデバイスの向きに回転させる
             ctx.rotate(-deviceOrientationOffset);
             ctx.translate(-cx, -cy);
 
@@ -622,7 +640,7 @@
             const playerCircleRadius = radarMaxRadius * 0.1;
             const lineWidth = 4;
 
-            // レーダーの半透明ガラス質感（プレイヤーのいる中心部分）
+            // レーダーの半透明ガラス質感（中心からレーダー最大半径まで）
             ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
             ctx.beginPath();
             ctx.arc(cx, cy, radarMaxRadius, 0, 2 * Math.PI);
@@ -682,11 +700,14 @@
                 const enemySize = radarMaxRadius * 0.025;
                 
                 let enemyColor;
-                let blurAmount = 0; // ぼかし量
 
                 // 2. 敵の挙動と攻撃可否 / 3. 彩度の変化演出
+                // HSLからRGBへの変換で彩度と明度を動的に調整
+                const initialHue = (e.angle / (2 * Math.PI)) * 360;
+                let currentLightness;
+
+                // 危険度に応じて赤から白へ変化させるロジックも考慮
                 if (e.canBeAttacked) { // ゾーン内
-                    // 危険度に応じて赤から白へ変化
                     const distanceRatioInZone = e.distance / attackZoneRadius; // ゾーン内での比率 0-1
                     if (distanceRatioInZone < 0.3) { // 非常に近い（赤から白へ）
                         const ratio = distanceRatioInZone / 0.3; // 0-1
@@ -701,25 +722,21 @@
                         const b = 0;
                         enemyColor = `rgb(${r}, ${g}, ${b})`;
                     } else { // ゾーンに入ったばかり（彩度MAXの初期色）
-                        enemyColor = e.initialColor; // 彩度MAXで鮮やか
+                        currentLightness = 70; // 基本の明るさ
+                        enemyColor = hslToRgb(initialHue, e.currentSaturation, currentLightness);
                     }
-                    blurAmount = 0; // ゾーン内はぼかしなし
-
                 } else { // ゾーン外
-                    // 彩度かなり低め（グレー）で軽くぼかし
-                    const initialHue = (e.angle / (2 * Math.PI)) * 360;
-                    enemyColor = `hsl(${initialHue}, 10%, 30%)`; // 低い彩度と明度でグレー表現
-                    blurAmount = 1; // 1pxぼかし
+                    currentLightness = 30; // ゾーン外は暗めに
+                    enemyColor = hslToRgb(initialHue, e.currentSaturation, currentLightness); // 低い彩度と明度でグレー表現
                 }
                 
-                ctx.filter = `blur(${blurAmount}px)`; // ぼかしを適用
+                ctx.filter = `blur(${e.currentBlur}px)`; // ぼかしを適用
 
                 const absoluteShootAngle = normalizeAngle(startAngle + fanAngle / 2 + deviceOrientationOffset);
                 const diff = Math.abs(normalizeAngle(e.angle - absoluteShootAngle));
-                const currentShootRange = fanAngle;
 
                 // 敵照準でのボーダー色変化（攻撃可能かつ照準に入っている場合）
-                if (e.canBeAttacked && diff < currentShootRange / 2 && e.distance < attackZoneRadius) {
+                if (e.canBeAttacked && diff < fanAngle / 2 && e.distance < attackZoneRadius) {
                     e.isTargeted = true;
                     ctx.strokeStyle = "#00FF5A";
                     ctx.lineWidth = 2;
@@ -738,7 +755,11 @@
                 ctx.filter = 'none'; // フィルターをリセット
             });
 
+            // レーダー全体の回転を解除して、プレイヤーを画面上部固定で描画
+            ctx.restore();
+
             // 1. 正円の枠の構造: プレイヤーを緑色の円に白いボーダーつきで描画
+            // プレイヤーは常に画面中央に固定
             ctx.shadowColor = "rgba(0, 255, 90, 0.8)";
             ctx.shadowBlur = 20;
             ctx.shadowOffsetX = 0;
@@ -750,15 +771,20 @@
             ctx.fill();
             
             ctx.strokeStyle = '#FFFFFF'; // 白いボーダー
-            ctx.lineWidth = 3;
+            ctx.lineWidth = 5; // ★白いボーダーを1まわり太くしました★
             ctx.beginPath();
-            ctx.arc(cx, cy, playerCircleRadius + 1, 0, 2 * Math.PI); // 少し大きめの円でボーダー
+            ctx.arc(cx, cy, playerCircleRadius + 2, 0, 2 * Math.PI); // 少し大きめの円でボーダー
             ctx.stroke();
+
+            // プレイヤーの向きを示すマーカー（常に画面上部を向く）
+            ctx.fillStyle = '#FFFFFF';
+            ctx.beginPath();
+            ctx.arc(cx, cy - playerCircleRadius * 0.7, playerCircleRadius * 0.2, 0, 2 * Math.PI);
+            ctx.fill();
+
 
             ctx.shadowBlur = 0;
             ctx.shadowColor = "rgba(0, 0, 0, 0)";
-
-            ctx.restore();
         }
 
         function normalizeAngle(angle) {
@@ -874,14 +900,14 @@
                 shootCooldown = false;
             }, SHOOT_COOLDOWN_TIME);
 
-            const shootAngle = -Math.PI / 2;
+            const shootAngle = -Math.PI / 2; // 常に上方向を向く
             const fanAngle = Math.PI * 30 / 180;
 
             enemies = enemies.filter(e => {
                 const absoluteShootAngle = normalizeAngle(shootAngle + deviceOrientationOffset);
                 const diff = Math.abs(normalizeAngle(e.angle - absoluteShootAngle));
 
-                // 2. ゾーンに入った敵だけが攻撃可能になる
+                // ゾーンに入った敵だけが攻撃可能になる
                 if (e.canBeAttacked && diff < fanAngle / 2 && e.distance < attackZoneRadius) {
                     e.health--;
                     if (e.health <= 0) {
