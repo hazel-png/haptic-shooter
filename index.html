@@ -346,10 +346,8 @@
 
         // --- 加速度センサー用の変数 ---
         let lastZAcceleration = 0; // 前回のZ軸の加速度 (未使用だが、将来的なフィルタリングに備えて残す)
-        // ★★★ 誤発射対策: しきい値を高く設定 ★★★
-        const SHOOT_ACCELERATION_THRESHOLD = 18; // 発射と判断するZ軸加速度のしきい値 (例: 8から12に変更)
-        // ★★★ 誤発射対策: クールダウンを長く設定 ★★★
-        const ACCELERATION_COOLDOWN_TIME = 1200; // 加速度による射撃のクールダウン (例: 800から1200に変更)
+        const SHOOT_ACCELERATION_THRESHOLD = 18; // 発射と判断するZ軸加速度のしきい値
+        const ACCELERATION_COOLDOWN_TIME = 1200; // 加速度による射撃のクールダウン
         let accelerationShootCooldown = false; // 加速度による射撃がクールダウン中か
 
         let comboCount = 0;
@@ -591,18 +589,23 @@
                 const ey = cy + e.distance * Math.sin(rotatedAngle);
 
                 let enemyColor = "rgba(0, 122, 255, 0.8)";
-                let enemySize = 5;
-                let doBlink = false;
+                let enemySize = 5; // ここで宣言
+
+                // ★★★ 敵のサイズを大きくする調整 ★★★
                 if (e.distance < 70) {
                     enemyColor = "rgba(255, 45, 85, 0.9)";
-                    enemySize = 8 + (70 - e.distance) / 7;
-                    doBlink = (Math.floor(Date.now() / 100) % 2 === 0);
+                    enemySize = 10 + (70 - e.distance) / 7; // 以前: 8 -> 10
                 } else if (e.distance < 150) {
                     enemyColor = "rgba(255, 153, 0, 0.9)";
-                    enemySize = 6 + (150 - e.distance) / 20;
+                    enemySize = 8 + (150 - e.distance) / 20; // 以前: 6 -> 8
                 } else {
                     enemyColor = "rgba(0, 122, 255, 0.8)";
-                    enemySize = 5;
+                    enemySize = 12; // 以前: 5 -> 7
+                }
+                
+                let doBlink = false;
+                if (e.distance < 70) { // 接近時のみ点滅判定
+                    doBlink = (Math.floor(Date.now() / 100) % 2 === 0);
                 }
                 ctx.fillStyle = doBlink ? "rgba(255, 45, 85, 1)" : enemyColor;
                 ctx.beginPath();
