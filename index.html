@@ -303,9 +303,6 @@
     <script>
         const canvas = document.getElementById("radarCanvas");
         const ctx = canvas.getContext("2d");
-        // const shootButton = document.getElementById("shootButton"); // 削除
-        // const shootButtonIcon = shootButton.querySelector('.icon'); // 削除
-        // const shootCooldownBar = shootButton.querySelector('.cooldown-bar'); // 削除
         const scoreDisplay = document.getElementById("scoreDisplay");
         const comboDisplay = document.getElementById("comboDisplay");
         const gameOverScreen = document.getElementById("gameOverScreen");
@@ -407,8 +404,8 @@
         function handleDeviceOrientation(e) {
             if (e.alpha !== null) {
                 // デバイスのZ軸周りの回転 (方位) をプレイヤーアングルとして使用
-                // デバイスの向きがマップの回転に直接影響するようにする
-                playerAngle = -e.alpha * Math.PI / 180; // 0-360度をラジアンに変換し、反時計回りに調整
+                // マップがスマホの動きの逆向きに動くようにするため、符号を反転させない
+                playerAngle = e.alpha * Math.PI / 180; // 0-360度をラジアンに変換
             }
         }
 
@@ -604,7 +601,6 @@
             vibrateDevice([20, 10, 20]);
             
             shootCooldown = true;
-            // クールダウンの視覚的なフィードバックは削除されたが、機能は保持
             setTimeout(() => {
                 shootCooldown = false;
             }, SHOOT_COOLDOWN_TIME);
@@ -618,13 +614,6 @@
                 const enemyRelativeAngle = normalizeAngle(e.angle + playerAngle); // 敵の絶対角度にプレイヤーの回転を加算
                 
                 // 照準は常に画面上部（-PI/2 または 3PI/2）を向いている
-                // 照準の方向を0度 (右) を基準にした時の画面上部の角度とする。
-                // 実際には、画面上部なのでY軸負方向、角度としては -Math.PI / 2
-                // しかし、playerAngleがマップの回転に相当するため、
-                // 敵とプレイヤーの照準の相対角度を計算する必要がある。
-                // プレイヤーの照準は常に画面上部を向いているため、固定された照準方向と敵の相対角度を比較する。
-                // プレイヤーの照準は常に上方向 (-PI/2 ラジアン) を指す。
-                // 敵の相対的な角度 (マップ回転を考慮した位置) と照準方向を比較する
                 const targetAngle = -Math.PI / 2; // 画面上部を指す固定の照準角度 (ラジアン)
                 const diff = Math.abs(normalizeAngle(enemyRelativeAngle - targetAngle));
                 
