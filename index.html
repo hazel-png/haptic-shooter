@@ -347,7 +347,7 @@
         // --- 加速度センサー用の変数 ---
         let lastZAcceleration = 0; // 前回のZ軸の加速度 (未使用だが、将来的なフィルタリングに備えて残す)
         // ★★★ 誤発射対策: しきい値を高く設定 ★★★
-        const SHOOT_ACCELERATION_THRESHOLD = 12; // 発射と判断するZ軸加速度のしきい値 (例: 8から12に変更)
+        const SHOOT_ACCELERATION_THRESHOLD = 24; // 発射と判断するZ軸加速度のしきい値 (例: 8から12に変更)
         // ★★★ 誤発射対策: クールダウンを長く設定 ★★★
         const ACCELERATION_COOLDOWN_TIME = 1200; // 加速度による射撃のクールダウン (例: 800から1200に変更)
         let accelerationShootCooldown = false; // 加速度による射撃がクールダウン中か
