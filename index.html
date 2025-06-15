@@ -488,8 +488,8 @@
         function handleDeviceOrientation(e) {
             if (e.alpha !== null) {
                 // alphaは0-360度で、真北からの時計回り。
-                // CanvasのY軸正方向（下）を0度とすると、デバイスの真上を向くには、alphaに合わせる
-                // -e.alpha * Math.PI / 180; とすることで、デバイスの回転と画面の回転が一致する
+                // -e.alpha * Math.PI / 180 とすることで、デバイスの回転と画面の回転が一致する
+                // (デバイスが時計回りに回転すると、レーダーの表示が反時計回りに回転する)
                 deviceOrientationOffset = -e.alpha * Math.PI / 180;
             }
         }
@@ -568,13 +568,20 @@
             ctx.arc(cx, cy, Math.min(canvas.width, canvas.height) * 0.4, 0, 2 * Math.PI);
             ctx.fill();
 
-            // ゾーン枠を色相環グラデーションで描画
+            // ゾーン枠と敵の描画はデバイスの向きに合わせて回転
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.rotate(-deviceOrientationOffset); // デバイスの向きのオフセットを適用
+            ctx.translate(-cx, -cy);
+
+            // ゾーン枠を色相環グラデーションで描画（回転する）
             ctx.shadowColor = "rgba(255, 255, 255, 0.5)"; // 影の色は白系で統一
             ctx.shadowBlur = 20;
             ctx.shadowOffsetX = 0;
             ctx.shadowOffsetY = 0;
             ctx.lineWidth = 6;
 
+            // ゾーンの色相環グラデーションは回転するゾーンの中心に固定
             const zoneHueGradient = ctx.createConicGradient(0, cx, cy); // 0は開始角度 (真上)
             zoneHueGradient.addColorStop(0, 'hsl(0, 100%, 70%)');    // 赤
             zoneHueGradient.addColorStop(0.16, 'hsl(60, 100%, 70%)'); // 黄
@@ -592,15 +599,10 @@
             ctx.shadowBlur = 0;
             ctx.shadowColor = "rgba(0, 0, 0, 0)";
 
-            // 敵の描画はデバイスの向きに合わせて回転
-            ctx.save();
-            ctx.translate(cx, cy);
-            ctx.rotate(-deviceOrientationOffset); // デバイスの向きのオフセットを適用
-            ctx.translate(-cx, -cy);
-
             // 敵（シンプルな幾何学的アイコン）の描画
             const radarMaxRadius = Math.min(canvas.width, canvas.height) * 0.4;
             enemies.forEach(e => {
+                // 敵の角度は、回転後の座標系で描画されるため、そのままe.angleを使用
                 const ex = cx + e.distance * Math.cos(e.angle);
                 const ey = cy + e.distance * Math.sin(e.angle);
                 
@@ -611,16 +613,16 @@
 
                 if (e.canBeAttacked) { // ゾーン内
                     // 敵の初期の色相を保ちつつ、中心に近づくほど明るく、彩度を上げる
+                    // 敵の色相はデバイスの回転には影響されない（絶対位置で決まる）
                     const initialHue = (normalizeAngle(e.angle) / (2 * Math.PI)) * 360;
-                    const distanceRatioInZone = e.distance / attackZoneRadius;
                     
                     // 距離に応じて彩度と明度を変化させる
                     // ゾーン外縁では通常の彩度、中心に近づくほど彩度と明度が高まる（警告色）
                     const saturation = 100; // ベース彩度
                     const lightness = 60; // ベース明度
 
-                    // 中心に近づくほど彩度・明度を上げる補正
-                    const proximityFactor = 1 - (e.distance / attackZoneRadius); // 0 (外縁) から 1 (中心)
+                    // 0 (外縁) から 1 (中心)
+                    const proximityFactor = 1 - (e.distance / attackZoneRadius); 
                     const enhancedSaturation = Math.min(saturation + proximityFactor * 50, 150); // 最大150%まで
                     const enhancedLightness = Math.min(lightness + proximityFactor * 20, 80); // 最大80%まで
 
@@ -634,9 +636,11 @@
                 
                 ctx.filter = `blur(${blurAmount}px)`;
 
-                const currentShootAngle = -Math.PI / 2 + deviceOrientationOffset; // プレイヤーの向いている方向
-                const fanAngle = Math.PI * 30 / 180;
-                const diff = Math.abs(normalizeAngle(e.angle - currentShootAngle));
+                // 敵の照準判定は、回転後の座標系での真上（-PI/2）を基準にする
+                // 扇形が固定されているため、敵の現在角度と扇形の中心角度（-PI/2）の差で判定
+                const shootAngleForTargeting = -Math.PI / 2; 
+                const diff = Math.abs(normalizeAngle(e.angle - shootAngleForTargeting));
+                const fanAngle = Math.PI * 30 / 180; // 30度
 
                 // 敵照準でのボーダー色変化（攻撃可能かつ照準に入っている場合）
                 if (e.canBeAttacked && diff < fanAngle / 2) {
@@ -657,29 +661,29 @@
 
                 ctx.filter = 'none';
             });
-            ctx.restore(); // ここで回転をリセット
+            ctx.restore(); // ここでゾーンと敵の回転をリセット
 
-            // 扇形（攻撃範囲）の描画
+            // 扇形（攻撃範囲）の描画（常に固定）
             const fanInnerRadius = playerCircleRadius;
             const fanOuterRadius = attackZoneRadius;
             const fanAngle = Math.PI * 30 / 180; // 30度
 
-            // 扇形の中心角度をデバイスの向きに合わせる
-            const currentFanCenterAngle = -Math.PI / 2 + deviceOrientationOffset;
-            const fanStartAngle = currentFanCenterAngle - fanAngle / 2;
-            const fanEndAngle = currentFanCenterAngle + fanAngle / 2;
+            // 扇形の中心角度は常に真上
+            const fanCenterAngle = -Math.PI / 2; // 固定された真上
+
+            const fanStartAngle = fanCenterAngle - fanAngle / 2;
+            const fanEndAngle = fanCenterAngle + fanAngle / 2;
 
             // 扇形のグラデーション（コニックグラデーションを適用）
-            const dynamicFanGradient = ctx.createConicGradient(currentFanCenterAngle, cx, cy);
+            // 扇形の中心は常に真上になるように設定
+            const dynamicFanGradient = ctx.createConicGradient(fanCenterAngle, cx, cy);
             
-            // 扇形内で色相を変化させ、中心が濃く、端が透明になるように調整
-            // 中心 (0%) が現在の向きの色相、両端 (100%) がその両隣の色相で透明になるように
             for (let i = 0; i <= 10; i++) {
                 const relativeAngleRatio = (i / 10) - 0.5; // -0.5 から 0.5 の範囲
                 const relativeAngle = relativeAngleRatio * fanAngle; // -fanAngle/2 から +fanAngle/2
                 
-                const globalAngle = normalizeAngle(currentFanCenterAngle + relativeAngle);
-                const hue = (globalAngle / (2 * Math.PI)) * 360;
+                // グラデーションの色相は、扇形内の相対的な位置で変化
+                const hue = (relativeAngleRatio + 0.5) * 60; // 例えば、左端-15度がH0, 中央0度がH30, 右端+15度がH60
                 
                 // 中心からの距離に基づいて透過度を調整 (中心が濃く、端が薄い)
                 const alpha = 0.9 - (Math.abs(relativeAngleRatio)) * 1.5; // 0.9から0まで変化
@@ -707,7 +711,7 @@
             ctx.shadowBlur = 0;
             ctx.shadowColor = "rgba(0, 0, 0, 0)";
 
-            // プレイヤーを緑色の円に白いボーダーつきで描画
+            // プレイヤーを緑色の円に白いボーダーつきで描画（常に固定）
             ctx.shadowColor = "rgba(0, 255, 90, 0.8)";
             ctx.shadowBlur = 20;
             ctx.shadowOffsetX = 0;
@@ -729,8 +733,11 @@
         }
 
         function normalizeAngle(angle) {
-            // 角度を0から2πの範囲に正規化
-            return (angle % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI);
+            // 角度を-πからπの範囲に正規化
+            let normalized = angle % (2 * Math.PI);
+            if (normalized <= -Math.PI) normalized += (2 * Math.PI);
+            if (normalized > Math.PI) normalized -= (2 * Math.PI);
+            return normalized;
         }
 
         function gameLoop() {
@@ -840,14 +847,16 @@
                 shootCooldown = false;
             }, SHOOT_COOLDOWN_TIME);
 
-            // 攻撃判定の角度をデバイスの向きに合わせる
-            const shootAngle = -Math.PI / 2 + deviceOrientationOffset;
+            // 攻撃判定の角度は、扇形が固定されているため、常に真上(-Math.PI/2)を基準にする
+            const shootAngle = -Math.PI / 2;
             const fanAngle = Math.PI * 30 / 180; // 30度
 
             enemies = enemies.filter(e => {
-                // 敵の絶対角度と、デバイスの向きを考慮した攻撃角度との差を計算
+                // 敵の絶対角度と、固定された扇形の中心角度との差を計算
+                // normalizeAngle関数で-PIからPIの範囲に正規化することで、扇形がまたがる角度の差も正しく計算できる
                 const diff = Math.abs(normalizeAngle(e.angle - shootAngle));
 
+                // 攻撃可能範囲にいて、かつ扇形内にいる敵を攻撃する
                 if (e.canBeAttacked && diff < fanAngle / 2) {
                     e.health--;
                     if (e.health <= 0) {
