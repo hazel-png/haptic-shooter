@@ -4,82 +4,208 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
     <title>Haptic Dot Shooter</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght%40400%3B600%3B700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
-        :root {
-            --combo-saturate: 100%; /* コンボ演出用の彩度変数 */
-        }
-
         body {
             margin: 0;
-            background: #000000; /* 1. ベースは黒やダークトーン */
+            background: linear-gradient(135deg, #f0f2f5, #e0e5ec);
             overflow: hidden;
             font-family: -apple-system, BlinkMacSystemFont, "SF Pro", 'Inter', sans-serif;
-            color: #E0E0E0;
+            color: #333;
             display: flex;
             justify-content: center;
             align-items: center;
             width: 100vw;
-            min-height: 100dvh;
+            min-height: 100vh;
             position: relative;
             user-select: none;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
-            perspective: 1200px;
-            transform-style: preserve-3d;
+            perspective: 1000px;
         }
 
         #radarCanvas {
-            width: 100vw;
-            height: 100dvh;
-            touch-action: none; /* タッチジェスチャーのデフォルト動作を無効化 */
+            /* width: 100vw; */ /* ここを削除またはコメントアウト */
+            /* height: 100vh; */ /* ここを削除またはコメントアウト */
+            touch-action: none; /* ピンチズームやパンを無効化 */
             display: block;
             position: absolute;
             top: 0;
             left: 0;
             z-index: 1;
-            transform: translateZ(-150px);
+            background: radial-gradient(circle at center, rgba(100, 100, 100, 0.03) 0%, rgba(0, 0, 0, 0) 70%);
+            transform: translateZ(-100px);
         }
 
-        /* ------------------------- */
-        /* 撃破・コンボフィードバック */
-        /* ------------------------- */
-        .hit-particle {
+        #shootButton {
+            position: fixed;
+            bottom: 3.5vh; /* 調整 */
+            left: 50%;
+            transform-style: preserve-3d;
+            transform: translateX(-50%) translateZ(50px);
+            width: 85%;
+            max-width: 420px; /* 調整 */
+            height: clamp(60px, 12vw, 75px); /* 調整 */
+            border-radius: 38px;
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(20px) saturate(1.2);
+            -webkit-backdrop-filter: blur(20px) saturate(1.2);
+            border: 1px solid rgba(255, 255, 255, 0.7);
+            border-bottom-color: rgba(255, 255, 255, 0.3);
+            border-right-color: rgba(255, 255, 255, 0.3);
+            color: #555;
+            font-size: clamp(1.2rem, 4.5vw, 1.8rem);
+            font-weight: 600;
+            box-shadow:
+                0 25px 50px rgba(0, 0, 0, 0.25),
+                0 0 0 1.5px rgba(255, 255, 255, 0.95) inset,
+                0 0 0 3px rgba(255, 255, 255, 0.6) inset;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+            cursor: pointer;
+            outline: none;
+            z-index: 10;
+            overflow: hidden;
+        }
+
+        #shootButton .icon {
+            font-size: clamp(1.8rem, 6vw, 2.8rem);
+            line-height: 1;
+            color: rgba(0, 122, 255, 0.8);
+            transition: transform 0.1s ease-out, color 0.1s ease-out;
+            transform: translateZ(8px);
+        }
+
+        #shootButton:not(.cooldown):active {
+            transform: translateX(-50%) translateZ(45px) scale(0.97);
+            box-shadow:
+                0 10px 20px rgba(0, 0, 0, 0.15),
+                0 0 0 1px rgba(255, 255, 255, 0.85) inset,
+                0 0 0 2px rgba(255, 255, 255, 0.5) inset;
+        }
+
+        #shootButton:not(.cooldown) .icon.bounce {
+            animation: shootButtonBounce 0.15s cubic-bezier(0.68, -0.55, 0.27, 1.55) forwards;
+            color: rgba(0, 122, 255, 1);
+        }
+
+        @keyframes shootButtonBounce {
+            0% { transform: scale(1) translateZ(8px); }
+            50% { transform: scale(1.1) translateZ(12px); }
+            100% { transform: scale(1) translateZ(8px); }
+        }
+
+        #shootButton.cooldown {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.3);
+            color: rgba(100, 100, 100, 0.5);
+            box-shadow: none;
+            cursor: not-allowed;
+            transform: translateX(-50%) translateZ(48px);
+        }
+
+        #shootButton.cooldown .icon {
+            color: rgba(100, 100, 100, 0.5);
+        }
+
+        #shootButton .cooldown-bar {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 5px;
+            background: linear-gradient(90deg, rgba(0, 122, 255, 0.8), rgba(0, 198, 255, 0.8));
+            transform-origin: left;
+            animation: cooldownFill linear forwards;
+            transform: translateZ(2px);
+        }
+
+        @keyframes cooldownFill {
+            from { transform: scaleX(0) translateZ(2px); }
+            to { transform: scaleX(1) translateZ(2px); }
+        }
+
+        .shoot-visual {
+            position: absolute;
+            background: rgba(0, 122, 255, 0.5);
+            border-radius: 50%;
+            transform: translate(-50%, -50%) scale(0) translateZ(25px);
+            opacity: 0;
+            animation: shootVisual 0.3s ease-out forwards;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        @keyframes shootVisual {
+            0% {
+                transform: translate(-50%, -50%) scale(0.3) translateZ(25px);
+                opacity: 1;
+            }
+            100% {
+                transform: translate(-50%, -50%) scale(8) translateZ(-60px);
+                opacity: 0;
+            }
+        }
+
+        .hit-effect {
+            position: absolute;
+            background: radial-gradient(circle, rgba(0, 200, 255, 0.9) 0%, rgba(0, 150, 255, 0.6) 40%, rgba(0, 122, 255, 0) 70%);
+            border-radius: 50%;
+            animation: hitEffect 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            pointer-events: none;
+            z-index: 6;
+            transform-origin: center center;
+            transform: translateZ(15px);
+        }
+
+        @keyframes hitEffect {
+            0% {
+                transform: scale(0) translateZ(15px);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(3.5) translateZ(-25px);
+                opacity: 0;
+            }
+        }
+
+        .enemy-particle {
             position: absolute;
             background: rgba(255, 255, 255, 0.9);
             border-radius: 50%;
             opacity: 0;
-            animation: particleExplosion 0.6s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards; /* Spring Animation風 */
+            animation: particleFade 0.8s ease-out forwards;
             pointer-events: none;
-            z-index: 6;
+            z-index: 4;
             transform-style: preserve-3d;
-            box-shadow: 0 0 5px rgba(255, 255, 255, 0.5);
         }
 
-        @keyframes particleExplosion {
+        @keyframes particleFade {
             0% {
-                transform: translate(-50%, -50%) scale(0) translateZ(10px);
-                opacity: 1;
+                transform: scale(0.2) translateZ(0);
+                opacity: 0.9;
             }
             100% {
-                transform: translate(calc(-50% + var(--translate-x)), calc(-50% + var(--translate-y))) scale(1) translateZ(-20px);
+                transform: scale(1.8) translateZ(25px);
                 opacity: 0;
             }
         }
 
         .score-popup {
             position: absolute;
-            color: #00FF5A;
-            font-size: clamp(0.8rem, 3.5vw, 1.4rem);
+            color: rgba(0, 122, 255, 1);
+            font-size: clamp(1rem, 4.5vw, 1.6rem);
             font-weight: 700;
             font-family: inherit;
             animation: scoreFadeOut 0.9s cubic-bezier(0.165, 0.84, 0.44, 1) forwards;
             opacity: 0;
             pointer-events: none;
             z-index: 7;
-            text-shadow: 0 0 5px rgba(0, 0, 0, 0.6);
+            text-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
             transform-style: preserve-3d;
-            filter: saturate(var(--combo-saturate));
         }
 
         @keyframes scoreFadeOut {
@@ -96,122 +222,62 @@
             }
         }
 
-        /* ------------------------- */
-        /* スコア & コンボ表示 */
-        /* ------------------------- */
         #scoreDisplay {
             position: fixed;
-            top: 2.5vh;
-            left: 50%;
-            transform: translateX(-50%) translateZ(30px);
+            top: 2.5vh; /* 調整 */
+            left: 4vw; /* 調整 */
             font-size: clamp(2rem, 8vw, 3.5rem);
             font-weight: 700;
-            color: #FFFFFF;
-            text-shadow: 0 0 15px rgba(0, 0, 0, 0.7);
+            color: #333;
+            text-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
             z-index: 10;
             font-family: inherit;
-            background: rgba(0, 0, 0, 0.3);
-            padding: 1vh 2vw;
-            border-radius: 8px;
-            min-width: 15vw;
-            text-align: center;
-            transition: transform 0.2s ease-out, box-shadow 0.2s ease-out, filter 0.3s ease-out;
-            filter: saturate(var(--combo-saturate));
+            transform: translateZ(25px);
         }
-
-        #scoreDisplay.vibrate {
-            animation: scoreVibrate 0.1s linear infinite alternate;
-        }
-        @keyframes scoreVibrate {
-            from { transform: translateX(-50%) translateZ(30px) translateY(-2px); }
-            to { transform: translateX(-50%) translateZ(30px) translateY(2px); }
-        }
-
 
         #comboDisplay {
             position: fixed;
-            top: 10.5vh;
-            left: 50%;
-            transform: translateX(-50%) translateZ(25px);
-            font-size: clamp(1.4rem, 5.5vw, 2.5rem);
+            top: 9vh; /* 調整 */
+            left: 4vw; /* 調整 */
+            font-size: clamp(1.5rem, 6vw, 2.5rem);
             font-weight: 700;
-            color: #00FF5A;
-            text-shadow: 0 0 10px rgba(0, 0, 0, 0.6);
+            color: rgba(0, 122, 255, 1);
+            text-shadow: 0 2px 8px rgba(0, 123, 255, 0.2);
             z-index: 10;
             font-family: inherit;
             opacity: 0;
             transform-style: preserve-3d;
-            background: rgba(0, 0, 0, 0.3);
-            padding: 0.8vh 2vw;
-            border-radius: 8px;
-            transition: opacity 0.3s ease-out, transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), filter 0.3s ease-out;
-            white-space: nowrap;
-            filter: saturate(var(--combo-saturate));
+            transform: translateY(20px) scale(0.8) translateZ(18px);
+            transition: opacity 0.3s ease-out, transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
 
         #comboDisplay.active {
             opacity: 1;
-            transform: translateX(-50%) translateY(0) scale(1) translateZ(35px);
-            box-shadow: 0 0 20px rgba(0, 255, 90, 0.6), 0 0 30px rgba(0, 255, 90, 0.4), 0 0 40px rgba(0, 255, 90, 0.2);
-            animation: comboRingRotate 4s linear infinite;
+            transform: translateY(0) scale(1) translateZ(28px);
         }
 
-        @keyframes comboRingRotate {
-            from { box-shadow: 0 0 20px rgba(0, 255, 90, 0.6), 0 0 30px rgba(0, 255, 90, 0.4), 0 0 40px rgba(0, 255, 90, 0.2); }
-            to { box-shadow: 0 0 20px rgba(0, 255, 90, 0.6), 0 0 30px rgba(0, 255, 90, 0.4), 0 0 40px rgba(0, 255, 90, 0.2); transform: translateX(-50%) translateY(0) scale(1) translateZ(35px) rotateZ(360deg); }
-        }
-
-        /* ------------------------- */
-        /* 操作フィードバック UI */
-        /* ------------------------- */
-        .ripple-effect {
-            position: absolute;
-            border-radius: 50%;
-            background: rgba(0, 255, 90, 0.4);
-            animation: ripple 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-            pointer-events: none;
-            z-index: 8;
-            transform: translate(-50%, -50%) translateZ(40px);
-        }
-
-        @keyframes ripple {
-            0% {
-                transform: translate(-50%, -50%) scale(0) translateZ(40px);
-                opacity: 1;
-            }
-            100% {
-                transform: translate(-50%, -50%) scale(2) translateZ(40px);
-                opacity: 0;
-            }
-        }
-
-        /* ------------------------- */
-        /* 終了・リトライ画面 */
-        /* ------------------------- */
         #gameOverScreen {
             position: fixed;
             top: 0;
             left: 0;
             width: 100vw;
-            height: 100dvh;
-            background: rgba(0, 0, 0, 0.95);
-            backdrop-filter: blur(25px) saturate(150%);
-            -webkit-backdrop-filter: blur(25px) saturate(150%);
+            height: 100vh;
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(35px) saturate(1.3);
+            -webkit-backdrop-filter: blur(35px) saturate(1.3);
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            color: #E0E0E0;
+            color: #333;
             font-size: 2rem;
             z-index: 100;
             opacity: 0;
             visibility: hidden;
-            transition: opacity 0.8s ease-in-out, transform 0.8s cubic-bezier(0.2, 0.8, 0.2, 1), background 0.8s ease-in-out;
-            border-radius: 0;
+            transition: opacity 0.6s ease-in-out, transform 0.6s ease-in-out;
+            border-radius: 16px;
             transform-style: preserve-3d;
             transform: translateZ(50px) scale(0.9);
-            padding: 5vh;
-            box-sizing: border-box;
         }
 
         #gameOverScreen.visible {
@@ -221,75 +287,61 @@
         }
 
         #gameOverScreen h2 {
-            font-size: clamp(2.8rem, 11vw, 5.5rem);
-            color: #00FF5A;
-            margin-bottom: 3vh;
-            text-shadow: 0 0 20px rgba(0, 255, 90, 0.7);
+            font-size: clamp(3rem, 12vw, 6rem);
+            color: rgba(255, 45, 85, 0.9);
+            margin-bottom: 25px;
+            text-shadow: 0 0 20px rgba(255, 45, 85, 0.5);
             font-weight: 700;
             transform: translateZ(15px);
         }
 
         #finalScore {
-            font-size: clamp(1.8rem, 7vw, 3.5rem);
-            margin-bottom: 7vh;
-            color: #FFFFFF;
-            text-shadow: 0 0 15px rgba(255, 255, 255, 0.6);
+            font-size: clamp(2rem, 8vw, 4rem);
+            margin-bottom: 5vh; /* 調整 */
+            color: rgba(0, 122, 255, 1);
+            text-shadow: 0 0 15px rgba(0, 123, 255, 0.4);
             font-family: inherit;
             font-weight: 600;
             transform: translateZ(10px);
         }
 
         #restartButton {
-            padding: 2.2vh 6vw;
-            background: rgba(0, 255, 90, 0.2);
-            border: 2px solid rgba(0, 255, 90, 0.8);
-            border-radius: 50px;
-            color: #FFFFFF;
+            padding: 1.8vh 4.5vw; /* 調整 */
+            background: rgba(255, 255, 255, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.9);
+            border-bottom-color: rgba(255, 255, 255, 0.5);
+            border-right-color: rgba(255, 255, 255, 0.5);
+            border-radius: 12px;
+            color: rgba(0, 122, 255, 1);
             font-size: clamp(1.5rem, 5vw, 2.2rem);
             font-weight: 700;
             cursor: pointer;
-            transition: all 0.3s cubic-bezier(0.2, 0.8, 0.2, 1);
-            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.8), inset 0 0 15px rgba(0, 255, 90, 0.4);
+            transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
             font-family: inherit;
             transform-style: preserve-3d;
-            transform: translateZ(20px);
-            overflow: hidden;
-            position: relative;
+            transform: translateZ(15px);
         }
 
-        #restartButton::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 255, 90, 0.0);
-            transition: background 0.3s ease;
-            z-index: -1;
-        }
-
-        #restartButton:hover::before {
-            background: rgba(0, 255, 90, 0.15);
+        #restartButton:hover {
+            background: rgba(255, 255, 255, 0.7);
+            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.25);
+            transform: translateY(-5px) translateZ(25px);
         }
 
         #restartButton:active {
-            transform: scale(0.95) translateZ(15px);
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.6), inset 0 0 8px rgba(0, 255, 90, 0.6);
-            transition: all 0.1s ease-out;
+            transform: scale(0.96) translateZ(10px);
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
         }
 
-        /* ------------------------- */
-        /* スタート画面 */
-        /* ------------------------- */
         #startScreen {
             position: fixed;
             top: 0;
             left: 0;
             width: 100vw;
-            height: 100dvh;
-            background: #000000;
-            color: #FFFFFF;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.9);
+            color: white;
             display: flex;
             flex-direction: column;
             justify-content: center;
@@ -299,7 +351,7 @@
             text-align: center;
             font-family: inherit;
             cursor: pointer;
-            transition: opacity 0.6s ease-out, transform 0.6s cubic-bezier(0.2, 0.8, 0.2, 1);
+            transition: opacity 0.5s ease-out;
             transform-style: preserve-3d;
             transform: translateZ(200px);
         }
@@ -313,23 +365,25 @@
         #startScreen p {
             font-size: clamp(2rem, 7vw, 3.5rem);
             font-weight: 700;
-            color: #00FF5A;
-            text-shadow: 0 0 10px rgba(0, 0, 0, 0.6);
+            color: #f0f0f0;
             transform: translateZ(8px);
-            margin-bottom: 3.5vh;
+            margin-bottom: 3.5vh; /* 調整 */
         }
 
         #startScreen span {
-            font-size: clamp(0.8rem, 3vw, 1.3rem);
+            font-size: clamp(0.9rem, 3.5vw, 1.5rem);
             opacity: 0.85;
             color: #ccc;
-            text-shadow: 0 0 5px rgba(0, 0, 0, 0.3);
             transform: translateZ(5px);
         }
     </style>
 </head>
 <body>
     <canvas id="radarCanvas"></canvas>
+    <button id="shootButton">
+        <span class="icon">●</span>
+        <div class="cooldown-bar"></div>
+    </button>
     <div id="scoreDisplay">0</div>
     <div id="comboDisplay"></div>
     <div id="gameOverScreen">
@@ -346,6 +400,9 @@
     <script>
         const canvas = document.getElementById("radarCanvas");
         const ctx = canvas.getContext("2d");
+        const shootButton = document.getElementById("shootButton");
+        const shootButtonIcon = shootButton.querySelector('.icon');
+        const shootCooldownBar = shootButton.querySelector('.cooldown-bar');
         const scoreDisplay = document.getElementById("scoreDisplay");
         const comboDisplay = document.getElementById("comboDisplay");
         const gameOverScreen = document.getElementById("gameOverScreen");
@@ -354,27 +411,19 @@
         const startScreen = document.getElementById("startScreen");
 
         let enemies = [];
-        let deviceOrientationOffset = 0; // -alpha を直接格納
-        let cx;
-        let cy;
+        let playerAngle = 0;
+        let cx; // Canvasの中心座標は動的に設定
+        let cy; // Canvasの中心座標は動的に設定
         let score = 0;
         let isGameOver = false;
         let shootCooldown = false;
-        const SHOOT_COOLDOWN_TIME = 350;
+        const SHOOT_COOLDOWN_TIME = 500;
 
         let comboCount = 0;
         let lastKillTime = 0;
-        const COMBO_RESET_TIME = 1200;
+        const COMBO_RESET_TIME = 1500;
 
         let audioContext;
-        let enemySpawnInterval;
-
-        let lastShakeTime = 0;
-        const SHAKE_THRESHOLD = 15;
-        const SHAKE_COOLDOWN = 500;
-
-        let attackZoneRadius;
-        let playerCircleRadius;
 
         // Canvasの論理サイズと中心座標を設定する関数
         function setCanvasDimensions() {
@@ -382,8 +431,6 @@
             canvas.height = window.innerHeight;
             cx = canvas.width / 2;
             cy = canvas.height / 2;
-            attackZoneRadius = Math.min(canvas.width, canvas.height) * 0.45; // ゾーンの半径を大きく
-            playerCircleRadius = Math.min(canvas.width, canvas.height) * 0.4 * 0.1;
         }
 
         // バイブレーション関数を抽象化
@@ -403,8 +450,8 @@
 
             oscillator.type = type;
             oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
-            gainNode.gain.setValueAtTime(0.0001, audioContext.currentTime + duration); // Exponential decay
-            gainNode.gain.linearRampToValueAtTime(0.0001, audioContext.currentTime + duration); // Fallback for some browsers
+            gainNode.gain.setValueAtTime(volume, audioContext.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + duration);
 
             oscillator.start(audioContext.currentTime);
             oscillator.stop(audioContext.currentTime + duration);
@@ -421,11 +468,9 @@
             comboDisplay.textContent = "";
             comboDisplay.classList.remove("active");
             gameOverScreen.classList.remove("visible");
-            deviceOrientationOffset = 0;
-            document.documentElement.style.setProperty('--combo-saturate', '100%');
-
+            playerAngle = 0;
             if (enemySpawnInterval) clearInterval(enemySpawnInterval);
-            enemySpawnInterval = setInterval(spawnEnemy, 2000);
+            enemySpawnInterval = setInterval(spawnEnemy, 2500);
             gameLoop();
         }
 
@@ -439,7 +484,8 @@
                     .then(permissionState => {
                         if (permissionState === 'granted') {
                             window.addEventListener("deviceorientation", handleDeviceOrientation);
-                            requestDeviceMotionPermissionAndContinue();
+                            startScreen.classList.add('hidden');
+                            initGame();
                         } else {
                             alert('ジャイロセンサーの利用が拒否されました。ゲームをプレイできません。ブラウザの設定で許可が必要な場合があります。');
                         }
@@ -450,295 +496,130 @@
                     });
             } else {
                 window.addEventListener("deviceorientation", handleDeviceOrientation);
-                requestDeviceMotionPermissionAndContinue();
-            }
-        }
-
-        function requestDeviceMotionPermissionAndContinue() {
-            if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
-                DeviceMotionEvent.requestPermission()
-                    .then(permissionState => {
-                        if (permissionState === 'granted') {
-                            window.addEventListener("devicemotion", handleDeviceMotion);
-                            startScreen.classList.add('hidden');
-                            initGame();
-                            canvas.addEventListener("click", handleShoot);
-                        } else {
-                            alert('加速度センサーの利用が拒否されました。振る操作ができません。ブラウザの設定で許可が必要な場合があります。');
-                            startScreen.classList.add('hidden');
-                            initGame();
-                            canvas.addEventListener("click", handleShoot);
-                        }
-                    })
-                    .catch(error => {
-                        console.error("DeviceMotionEvent.requestPermission error:", error);
-                        alert('加速度センサーの許可リクエスト中にエラーが発生しました。お使いのデバイスが対応しているか確認してください。');
-                        startScreen.classList.add('hidden');
-                        initGame();
-                        canvas.addEventListener("click", handleShoot);
-                    });
-            } else {
-                window.addEventListener("devicemotion", handleDeviceMotion);
                 startScreen.classList.add('hidden');
                 initGame();
-                canvas.addEventListener("click", handleShoot);
             }
         }
 
         function handleDeviceOrientation(e) {
             if (e.alpha !== null) {
-                // alphaは0-360度で、真北からの時計回り。
-                // deviceOrientationOffset には -e.alpha を格納し、
-                // これをそのまま ctx.rotate() に渡すと、デバイスの回転と画面の回転が一致します。
-                // 今回は逆方向なので、そのまま e.alpha の値を渡します。
-                deviceOrientationOffset = e.alpha * Math.PI / 180;
+                playerAngle = -e.alpha * Math.PI / 180;
             }
-        }
-
-        function handleDeviceMotion(e) {
-            if (isGameOver) return;
-            const acceleration = e.accelerationIncludingGravity;
-            if (acceleration && acceleration.z) {
-                const now = performance.now();
-                if (Math.abs(acceleration.z) > SHAKE_THRESHOLD && (now - lastShakeTime) > SHAKE_COOLDOWN) {
-                    if (acceleration.z < -SHAKE_THRESHOLD) { // デバイスを上に持ち上げる動き
-                        handleShoot();
-                        lastShakeTime = now;
-                    }
-                }
-            }
-        }
-
-        function getHslColorFromAngle(angle) {
-            // 角度を0-2PIから0-360に正規化し、色相を決定
-            const hue = (normalizeAngle(angle) / (2 * Math.PI)) * 360;
-            const saturation = 100;
-            const lightness = 70;
-            return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
         }
 
         function spawnEnemy() {
             if (isGameOver) return;
             const angle = Math.random() * 2 * Math.PI;
-            const initialDistance = Math.max(window.innerWidth, window.innerHeight) / 2 * 1.2;
+            const radius = Math.max(window.innerWidth, window.innerHeight) / 2 + 50;
             enemies.push({
-                angle: angle, // 敵の絶対角度
-                distance: initialDistance,
-                speed: 0.8 + Math.random() * 0.5,
+                angle: angle,
+                distance: radius,
+                speed: 0.5 + Math.random() * 0.3,
                 health: 1,
-                isApproaching: false,
-                isTargeted: false,
-                initialColor: getHslColorFromAngle(angle), // 初期の色相を保持
-                canBeAttacked: false
+                isApproaching: false
             });
         }
 
         function updateEnemies() {
             enemies.forEach(e => {
                 e.distance -= e.speed;
-
-                // 敵がプレイヤーに触れたらゲームオーバー
-                const enemySize = Math.min(canvas.width, canvas.height) * 0.4 * 0.025;
-                if (e.distance <= playerCircleRadius + enemySize) {
-                    endGame();
-                    return;
-                }
-
-                if (!e.canBeAttacked && e.distance <= attackZoneRadius) {
-                    e.canBeAttacked = true;
-                    vibrateDevice([50]);
-                    generateSound(600, 0.08, 'triangle', 0.4);
-                }
-                
-                if (e.distance < attackZoneRadius * 0.7 && !e.isApproaching && e.canBeAttacked) {
+                if (e.distance < 150 && !e.isApproaching) {
                     e.isApproaching = true;
                     vibrateDevice([30, 20, 30]);
                     generateSound(440, 0.05, 'sawtooth', 0.3);
                 }
+                if (e.distance < 100 && Math.random() < 0.1) {
+                    createEnemyParticle(cx + e.distance * Math.cos(e.angle), cy + e.distance * Math.sin(e.angle));
+                }
             });
-            const enemySizePlaceholder = Math.min(canvas.width, canvas.height) * 0.4 * 0.025;
-            enemies = enemies.filter(e => e.distance > playerCircleRadius + enemySizePlaceholder);
+            enemies = enemies.filter(e => {
+                if (e.distance <= 15) {
+                    endGame();
+                    return false;
+                }
+                return true;
+            });
+
+            if (comboCount > 0 && performance.now() - lastKillTime > COMBO_RESET_TIME) {
+                comboCount = 0;
+                comboDisplay.classList.remove("active");
+                comboDisplay.style.transition = 'opacity 0.5s ease-out, transform 0.5s ease-in';
+                comboDisplay.style.opacity = '0';
+                comboDisplay.style.transform = 'translateY(20px) scale(0.8) translateZ(18px)';
+                setTimeout(() => {
+                    comboDisplay.textContent = "";
+                    comboDisplay.style.transition = 'opacity 0.3s ease-out, transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+                }, 500);
+            }
+        }
+
+        function createEnemyParticle(x, y) {
+            const particle = document.createElement("div");
+            particle.className = "enemy-particle";
+            const size = Math.random() * 4 + 2;
+            particle.style.width = particle.style.height = `${size}px`;
+            particle.style.left = `${x + (Math.random() - 0.5) * 20}px`;
+            particle.style.top = `${y + (Math.random() - 0.5) * 20}px`;
+            document.body.appendChild(particle);
+            setTimeout(() => particle.remove(), 800);
         }
 
         function drawRadar() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // レーダーの半透明ガラス質感（中心部分）
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+            for (let i = 0; i < 60; i++) {
+                ctx.fillStyle = `rgba(0, 0, 0, ${0.01 + Math.random() * 0.03})`;
+                ctx.beginPath();
+                ctx.arc(Math.random() * canvas.width, Math.random() * canvas.height, 0.7, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+
+            ctx.strokeStyle = "rgba(100, 100, 100, 0.1)";
+            ctx.lineWidth = 0.5;
+            for (let i = 1; i <= 5; i++) {
+                ctx.beginPath();
+                ctx.arc(cx, cy, i * 80, 0, 2 * Math.PI);
+                ctx.stroke();
+            }
+
+            ctx.fillStyle = "#333";
             ctx.beginPath();
-            ctx.arc(cx, cy, Math.min(canvas.width, canvas.height) * 0.4, 0, 2 * Math.PI);
+            ctx.arc(cx, cy, 4, 0, 2 * Math.PI);
             ctx.fill();
 
-            // ゾーン枠と敵の描画はデバイスの向きに合わせて逆回転
-            ctx.save();
-            ctx.translate(cx, cy);
-            ctx.rotate(deviceOrientationOffset); // デバイスの向きのオフセットを「そのまま」適用して逆回転
-            ctx.translate(-cx, -cy);
-
-            // ゾーン枠を色相環グラデーションで描画（回転する）
-            ctx.shadowColor = "rgba(255, 255, 255, 0.5)"; // 影の色は白系で統一
-            ctx.shadowBlur = 20;
-            ctx.shadowOffsetX = 0;
-            ctx.shadowOffsetY = 0;
-            ctx.lineWidth = 6;
-
-            // ゾーンの色相環グラデーションは回転するゾーンの中心に固定
-            const zoneHueGradient = ctx.createConicGradient(0, cx, cy); // 0は開始角度 (真上)
-            zoneHueGradient.addColorStop(0, 'hsl(0, 100%, 70%)');    // 赤
-            zoneHueGradient.addColorStop(0.16, 'hsl(60, 100%, 70%)'); // 黄
-            zoneHueGradient.addColorStop(0.33, 'hsl(120, 100%, 70%)'); // 緑
-            zoneHueGradient.addColorStop(0.5, 'hsl(180, 100%, 70%)'); // シアン
-            zoneHueGradient.addColorStop(0.66, 'hsl(240, 100%, 70%)'); // 青
-            zoneHueGradient.addColorStop(0.83, 'hsl(300, 100%, 70%)'); // マゼンタ
-            zoneHueGradient.addColorStop(1, 'hsl(360, 100%, 70%)');   // 赤 (一周)
-
-            ctx.strokeStyle = zoneHueGradient;
+            ctx.strokeStyle = "rgba(0, 122, 255, 0.8)";
+            ctx.lineWidth = 2;
             ctx.beginPath();
-            ctx.arc(cx, cy, attackZoneRadius, 0, 2 * Math.PI);
+            ctx.moveTo(cx, cy);
+            ctx.lineTo(cx + 80 * Math.cos(playerAngle), cy + 80 * Math.sin(playerAngle));
             ctx.stroke();
 
-            ctx.shadowBlur = 0;
-            ctx.shadowColor = "rgba(0, 0, 0, 0)";
-
-            // 敵（シンプルな幾何学的アイコン）の描画
-            const radarMaxRadius = Math.min(canvas.width, canvas.height) * 0.4;
             enemies.forEach(e => {
-                // 敵の角度は、回転後の座標系で描画されるため、そのままe.angleを使用
                 const ex = cx + e.distance * Math.cos(e.angle);
                 const ey = cy + e.distance * Math.sin(e.angle);
-                
-                const enemySize = radarMaxRadius * 0.025;
-                
-                let enemyColor;
-                let blurAmount = 0;
-
-                if (e.canBeAttacked) { // ゾーン内
-                    // 敵の初期の色相を保ちつつ、中心に近づくほど明るく、彩度を上げる
-                    // 敵の色相はデバイスの回転には影響されない（絶対位置で決まる）
-                    const initialHue = (normalizeAngle(e.angle) / (2 * Math.PI)) * 360;
-                    
-                    // 距離に応じて彩度と明度を変化させる
-                    // ゾーン外縁では通常の彩度、中心に近づくほど彩度と明度が高まる（警告色）
-                    const saturation = 100; // ベース彩度
-                    const lightness = 60; // ベース明度
-
-                    // 0 (外縁) から 1 (中心)
-                    const proximityFactor = 1 - (e.distance / attackZoneRadius); 
-                    const enhancedSaturation = Math.min(saturation + proximityFactor * 50, 150); // 最大150%まで
-                    const enhancedLightness = Math.min(lightness + proximityFactor * 20, 80); // 最大80%まで
-
-                    enemyColor = `hsl(${initialHue}, ${enhancedSaturation}%, ${enhancedLightness}%)`;
-                    blurAmount = 0;
-                } else { // ゾーン外
-                    const initialHue = (normalizeAngle(e.angle) / (2 * Math.PI)) * 360;
-                    enemyColor = `hsl(${initialHue}, 10%, 30%)`; // 彩度を落とし、暗くする
-                    blurAmount = 1;
-                }
-                
-                ctx.filter = `blur(${blurAmount}px)`;
-
-                // 敵の照準判定は、回転後の座標系での真上（-PI/2）を基準にする
-                // 扇形が固定されているため、敵の現在角度と扇形の中心角度（-PI/2）の差で判定
-                const shootAngleForTargeting = -Math.PI / 2; 
-                const diff = Math.abs(normalizeAngle(e.angle - shootAngleForTargeting));
-                const fanAngle = Math.PI * 30 / 180; // 30度
-
-                // 敵照準でのボーダー色変化（攻撃可能かつ照準に入っている場合）
-                if (e.canBeAttacked && diff < fanAngle / 2) {
-                    e.isTargeted = true;
-                    ctx.strokeStyle = "#00FF5A"; // 照準色
-                    ctx.lineWidth = 2;
-                    ctx.beginPath();
-                    ctx.arc(ex, ey, enemySize + 3, 0, 2 * Math.PI);
-                    ctx.stroke();
+                let enemyColor = "rgba(0, 122, 255, 0.8)";
+                let enemySize = 5;
+                let doBlink = false;
+                if (e.distance < 70) {
+                    enemyColor = "rgba(255, 45, 85, 0.9)";
+                    enemySize = 8 + (70 - e.distance) / 7;
+                    doBlink = (Math.floor(Date.now() / 100) % 2 === 0);
+                } else if (e.distance < 150) {
+                    enemyColor = "rgba(255, 153, 0, 0.9)";
+                    enemySize = 6 + (150 - e.distance) / 20;
                 } else {
-                    e.isTargeted = false;
+                    enemyColor = "rgba(0, 122, 255, 0.8)";
+                    enemySize = 5;
                 }
-                
-                ctx.fillStyle = enemyColor;
+                ctx.fillStyle = doBlink ? "rgba(255, 45, 85, 1)" : enemyColor;
                 ctx.beginPath();
                 ctx.arc(ex, ey, enemySize, 0, 2 * Math.PI);
                 ctx.fill();
-
-                ctx.filter = 'none';
             });
-            ctx.restore(); // ここでゾーンと敵の回転をリセット
-
-            // 扇形（攻撃範囲）の描画（常に固定）
-            const fanInnerRadius = playerCircleRadius;
-            const fanOuterRadius = attackZoneRadius;
-            const fanAngle = Math.PI * 30 / 180; // 30度
-
-            // 扇形の中心角度は常に真上
-            const fanCenterAngle = -Math.PI / 2; // 固定された真上
-
-            const fanStartAngle = fanCenterAngle - fanAngle / 2;
-            const fanEndAngle = fanCenterAngle + fanAngle / 2;
-
-            // 扇形のグラデーション（コニックグラデーションを適用）
-            // 扇形の中心は常に真上になるように設定
-            const dynamicFanGradient = ctx.createConicGradient(fanCenterAngle, cx, cy);
-            
-            for (let i = 0; i <= 10; i++) {
-                const relativeAngleRatio = (i / 10) - 0.5; // -0.5 から 0.5 の範囲
-                const relativeAngle = relativeAngleRatio * fanAngle; // -fanAngle/2 から +fanAngle/2
-                
-                // グラデーションの色相は、扇形内の相対的な位置で変化
-                const hue = (relativeAngleRatio + 0.5) * 60; // 例えば、左端-15度がH0, 中央0度がH30, 右端+15度がH60
-                
-                // 中心からの距離に基づいて透過度を調整 (中心が濃く、端が薄い)
-                const alpha = 0.9 - (Math.abs(relativeAngleRatio)) * 1.5; // 0.9から0まで変化
-
-                dynamicFanGradient.addColorStop(
-                    (relativeAngle + fanAngle / 2) / fanAngle, // グラデーションの停止位置 (0から1)
-                    `hsl(${hue}, 100%, 70%, ${Math.max(0, alpha)})` // 色と透過度
-                );
-            }
-
-            ctx.shadowColor = "rgba(255, 255, 255, 0.5)"; // 影の色は白系で統一
-            ctx.shadowBlur = 25;
-            ctx.shadowOffsetX = 0;
-            ctx.shadowOffsetY = 0;
-
-            ctx.beginPath();
-            ctx.moveTo(cx + fanInnerRadius * Math.cos(fanStartAngle), cy + fanInnerRadius * Math.sin(fanStartAngle));
-            ctx.arc(cx, cy, fanOuterRadius, fanStartAngle, fanEndAngle);
-            ctx.lineTo(cx + fanInnerRadius * Math.cos(fanEndAngle), cy + fanInnerRadius * Math.sin(fanEndAngle));
-            ctx.arc(cx, cy, fanInnerRadius, fanEndAngle, fanStartAngle, true);
-            ctx.closePath();
-            ctx.fillStyle = dynamicFanGradient; // 新しいグラデーションを適用
-            ctx.fill();
-
-            ctx.shadowBlur = 0;
-            ctx.shadowColor = "rgba(0, 0, 0, 0)";
-
-            // プレイヤーを緑色の円に白いボーダーつきで描画（常に固定）
-            ctx.shadowColor = "rgba(0, 255, 90, 0.8)";
-            ctx.shadowBlur = 20;
-            ctx.shadowOffsetX = 0;
-            ctx.shadowOffsetY = 0;
-            
-            ctx.fillStyle = '#00FF5A';
-            ctx.beginPath();
-            ctx.arc(cx, cy, playerCircleRadius, 0, 2 * Math.PI);
-            ctx.fill();
-            
-            ctx.strokeStyle = '#FFFFFF';
-            ctx.lineWidth = 8;
-            ctx.beginPath();
-            ctx.arc(cx, cy, playerCircleRadius + 4, 0, 2 * Math.PI);
-            ctx.stroke();
-
-            ctx.shadowBlur = 0;
-            ctx.shadowColor = "rgba(0, 0, 0, 0)";
         }
 
         function normalizeAngle(angle) {
-            // 角度を-πからπの範囲に正規化
-            let normalized = angle % (2 * Math.PI);
-            if (normalized <= -Math.PI) normalized += (2 * Math.PI);
-            if (normalized > Math.PI) normalized -= (2 * Math.PI);
-            return normalized;
+            return Math.atan2(Math.sin(angle), Math.cos(angle));
         }
 
         function gameLoop() {
@@ -748,75 +629,42 @@
             requestAnimationFrame(gameLoop);
         }
 
-        function createHitParticles(x, y, count = 10) {
-            for (let i = 0; i < count; i++) {
-                const particle = document.createElement("div");
-                particle.className = "hit-particle";
-                
-                const angle = Math.random() * Math.PI * 2;
-                const distance = Math.random() * 50 + 20;
-                const size = Math.random() * 8 + 2;
-                
-                particle.style.left = `${x}px`;
-                particle.style.top = `${y}px`;
-                particle.style.width = `${size}px`;
-                particle.style.height = `${size}px`;
-                
-                const colors = ['#FF6F61', '#FFD166', '#00B8D4', '#00D1B2', '#E040FB', '#FFFFFF'];
-                particle.style.background = colors[Math.floor(Math.random() * colors.length)];
-                
-                const translateX = distance * Math.cos(angle);
-                const translateY = distance * Math.sin(angle);
-
-                particle.style.setProperty('--translate-x', `${translateX}px`);
-                particle.style.setProperty('--translate-y', `${translateY}px`);
-
-                document.body.appendChild(particle);
-                setTimeout(() => particle.remove(), 600);
-            }
+        function createShootVisual(x, y) {
+            const visual = document.createElement("div");
+            visual.className = "shoot-visual";
+            visual.style.left = `${x}px`;
+            visual.style.top = `${y}px`;
+            visual.style.width = visual.style.height = `20px`;
+            document.body.appendChild(visual);
+            setTimeout(() => visual.remove(), 300);
         }
 
+        function createHitEffect(x, y) {
+            const effect = document.createElement("div");
+            effect.className = "hit-effect";
+            effect.style.left = `${x}px`;
+            effect.style.top = `${y}px`;
+            effect.style.width = effect.style.height = `40px`;
+            document.body.appendChild(effect);
+            setTimeout(() => effect.remove(), 300);
+        }
 
-        function createRippleEffect(x, y) {
-            const ripple = document.createElement("div");
-            ripple.className = "ripple-effect";
-            ripple.style.left = `${x}px`;
-            ripple.style.top = `${y}px`;
-            ripple.style.width = ripple.style.height = `min(15vw, 60px)`;
-            document.body.appendChild(ripple);
-            setTimeout(() => ripple.remove(), 400);
+        function showScorePopup(x, y, value, combo = 0) {
+            const popup = document.createElement("div");
+            popup.className = "score-popup";
+            popup.textContent = `+${value}`;
+            if (combo > 1) {
+                popup.textContent += ` (${combo}x)`;
+            }
+            popup.style.left = `${x}px`;
+            popup.style.top = `${y}px`;
+            document.body.appendChild(popup);
+            setTimeout(() => popup.remove(), 900);
         }
 
         function updateScore(points) {
-            const oldScore = score;
             score += points;
-            
-            let currentScore = oldScore;
-            const diff = score - oldScore;
-            const duration = 300;
-            const startTime = performance.now();
-
-            function animateScore() {
-                const now = performance.now();
-                const elapsed = now - startTime;
-                if (elapsed < duration) {
-                    const progress = elapsed / duration;
-                    scoreDisplay.textContent = Math.floor(oldScore + diff * progress).toString();
-                    requestAnimationFrame(animateScore);
-                } else {
-                    scoreDisplay.textContent = score.toString();
-                }
-            }
-            animateScore();
-
-            if (score > 0 && score % 5000 === 0) {
-                scoreDisplay.classList.add('vibrate');
-                vibrateDevice([50, 20, 50]);
-                generateSound(1500, 0.1, 'sine', 0.7);
-                setTimeout(() => {
-                    scoreDisplay.classList.remove('vibrate');
-                }, 300);
-            }
+            scoreDisplay.textContent = score.toString();
         }
 
         function endGame() {
@@ -827,51 +675,35 @@
             if (enemySpawnInterval) clearInterval(enemySpawnInterval);
             finalScore.textContent = `FINAL SCORE: ${score}`;
             gameOverScreen.classList.add("visible");
-            canvas.removeEventListener("click", handleShoot);
-            window.removeEventListener("devicemotion", handleDeviceMotion);
         }
 
-        function handleShoot(event) {
+        shootButton.addEventListener("click", () => {
             if (isGameOver || shootCooldown) return;
-            
-            if (event && event.clientX && event.clientY) {
-                createRippleEffect(event.clientX, event.clientY);
-            } else {
-                createRippleEffect(cx, cy);
-            }
-
+            createShootVisual(cx, cy);
             generateSound(880, 0.08, 'sine', 0.4);
             vibrateDevice([20, 10, 20]);
-            
+            shootButtonIcon.classList.add('bounce');
+            setTimeout(() => {
+                shootButtonIcon.classList.remove('bounce');
+            }, 150);
             shootCooldown = true;
+            shootButton.classList.add("cooldown");
+            shootCooldownBar.style.animation = `cooldownFill ${SHOOT_COOLDOWN_TIME / 1000}s linear forwards`;
             setTimeout(() => {
                 shootCooldown = false;
+                shootButton.classList.remove("cooldown");
+                shootCooldownBar.style.animation = '';
             }, SHOOT_COOLDOWN_TIME);
-
-            // 攻撃判定の角度は、扇形が固定されているため、常に真上(-Math.PI/2)を基準にする
-            const shootAngle = -Math.PI / 2;
-            const fanAngle = Math.PI * 30 / 180; // 30度
-
+            let hit = false;
+            const shootRange = Math.PI / 15;
             enemies = enemies.filter(e => {
-                // 敵の絶対角度と、固定された扇形の中心角度との差を計算
-                // normalizeAngle関数で-PIからPIの範囲に正規化することで、扇形がまたがる角度の差も正しく計算できる
-                const diff = Math.abs(normalizeAngle(e.angle - shootAngle));
-
-                // 攻撃可能範囲にいて、かつ扇形内にいる敵を攻撃する
-                if (e.canBeAttacked && diff < fanAngle / 2) {
+                const diff = Math.abs(normalizeAngle(e.angle - playerAngle));
+                if (diff < shootRange && e.distance < 300) {
                     e.health--;
                     if (e.health <= 0) {
-                        // 敵の描画位置は回転後の座標で計算されているので、そのまま使用
                         const ex = cx + e.distance * Math.cos(e.angle);
                         const ey = cy + e.distance * Math.sin(e.angle);
-                        
-                        // パーティクルとポップアップの位置を、逆回転を考慮して調整
-                        // ここで deviceOrientationOffset を「加算」することで、画面の固定座標系に変換
-                        const adjustedEx = cx + (ex - cx) * Math.cos(-deviceOrientationOffset) - (ey - cy) * Math.sin(-deviceOrientationOffset);
-                        const adjustedEy = cy + (ex - cx) * Math.sin(-deviceOrientationOffset) + (ey - cy) * Math.cos(-deviceOrientationOffset);
-
-                        createHitParticles(adjustedEx, adjustedEy, 15);
-                        
+                        createHitEffect(ex, ey);
                         const currentTime = performance.now();
                         if (currentTime - lastKillTime < COMBO_RESET_TIME) {
                             comboCount++;
@@ -879,51 +711,30 @@
                             comboCount = 1;
                         }
                         lastKillTime = currentTime;
-
-                        let comboText = "";
                         if (comboCount > 1) {
-                            comboText = `${comboCount} COMBO!`;
+                            comboDisplay.textContent = `${comboCount} COMBO!`;
                             comboDisplay.classList.add("active");
-                            const saturateValue = Math.min(100 + comboCount * 10, 300);
-                            document.documentElement.style.setProperty('--combo-saturate', `${saturateValue}%`);
-
-                            if (comboCount >= 3 && comboCount % 3 === 0) {
-                                vibrateDevice([30]);
-                                generateSound(1200, 0.05, 'triangle', 0.8);
+                            if (comboCount % 3 === 0) {
+                                vibrateDevice([30, 20, 30]);
                             }
+                            generateSound(800 + comboCount * 50, 0.08, 'triangle', 0.6);
                         } else {
-                             comboDisplay.classList.remove("active");
-                             document.documentElement.style.setProperty('--combo-saturate', '100%');
+                            comboDisplay.classList.remove("active");
+                            comboDisplay.style.transition = 'opacity 0.5s ease-out, transform 0.5s ease-in';
+                            comboDisplay.style.opacity = '0';
+                            comboDisplay.style.transform = 'translateY(20px) scale(0.8) translateZ(18px)';
+                            setTimeout(() => {
+                                comboDisplay.textContent = "";
+                                comboDisplay.style.transition = 'opacity 0.3s ease-out, transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275)';
+                            }, 500);
                         }
-                        
-                        let currentCombo = parseInt(comboDisplay.textContent.split(' ')[0]) || 0;
-                        if (comboCount > currentCombo) {
-                            const comboDiff = comboCount - currentCombo;
-                            const comboDuration = 200;
-                            const comboStartTime = performance.now();
-
-                            function animateCombo() {
-                                const now = performance.now();
-                                const elapsed = now - comboStartTime;
-                                if (elapsed < comboDuration) {
-                                    const progress = elapsed / comboDuration;
-                                    comboDisplay.textContent = `${Math.floor(currentCombo + comboDiff * progress)} COMBO! ${getComboIcon(Math.floor(currentCombo + comboDiff * progress))}`;
-                                    requestAnimationFrame(animateCombo);
-                                } else {
-                                    comboDisplay.textContent = comboText + getComboIcon(comboCount);
-                                }
-                            }
-                            animateCombo();
-                        } else {
-                            comboDisplay.textContent = comboText + getComboIcon(comboCount);
-                        }
-
                         let points = 100;
                         if (comboCount >= 2) {
                             points = Math.floor(points * (1 + comboCount * 0.2));
                         }
                         updateScore(points);
-                        showScorePopup(adjustedEx, adjustedEy, points, comboCount); // 調整済みの座標を渡す
+                        showScorePopup(ex, ey, points, comboCount);
+                        hit = true;
                         vibrateDevice([40, 30, 40]);
                         generateSound(1000, 0.1, 'triangle', 0.5);
                         return false;
@@ -931,43 +742,24 @@
                 }
                 return true;
             });
-        }
-
-        function getComboIcon(count) {
-            if (count >= 10) return '⚡️⚡️⚡️';
-            if (count >= 5) return '⚡️⚡️';
-            if (count >= 2) return '⚡️';
-            return '';
-        }
-
-        function showScorePopup(x, y, points, combo) {
-            const popup = document.createElement('div');
-            popup.className = 'score-popup';
-            popup.textContent = `+${points}`;
-            popup.style.left = `${x}px`;
-            popup.style.top = `${y}px`;
-            popup.style.filter = `saturate(${document.documentElement.style.getPropertyValue('--combo-saturate')})`;
-            document.body.appendChild(popup);
-            setTimeout(() => popup.remove(), 900);
-        }
+        });
 
         restartButton.addEventListener("click", () => {
             initGame();
-            canvas.addEventListener("click", handleShoot);
-            window.addEventListener("devicemotion", handleDeviceMotion);
         });
 
+        let enemySpawnInterval;
+
         window.onload = () => {
-            setCanvasDimensions();
+            setCanvasDimensions(); // ページロード時にCanvasのサイズと中心を設定
             startScreen.classList.remove('hidden');
         };
 
         startScreen.addEventListener('click', requestDeviceOrientationPermissionAndStartGame);
 
         window.addEventListener('resize', () => {
-            setCanvasDimensions();
+            setCanvasDimensions(); // リサイズ時にCanvasのサイズと中心を再設定
         });
-
     </script>
 </body>
 </html>
