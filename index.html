@@ -101,6 +101,29 @@
             }
         }
 
+        /* ガラス破砕エフェクトの基本スタイル */
+        .glass-shatter-particle {
+            position: absolute;
+            background: rgba(255, 255, 255, 0.7); /* 半透明の白でガラスを表現 */
+            border-radius: 1px; /* 小さな四角形で破片を表現 */
+            pointer-events: none;
+            z-index: 8; /* 他のエフェクトより前面に */
+            transform-style: preserve-3d;
+            opacity: 0; /* 最初は非表示 */
+        }
+
+        /* ガラス破砕アニメーション */
+        @keyframes shatter {
+            0% {
+                transform: translate(0, 0) rotate(0deg) scale(1) translateZ(0px);
+                opacity: 1;
+            }
+            100% {
+                transform: translate(var(--dx), var(--dy)) rotate(var(--rot)) scale(var(--scl)) translateZ(var(--dz));
+                opacity: 0;
+            }
+        }
+
         .score-popup {
             position: absolute;
             color: rgba(0, 122, 255, 1);
@@ -316,8 +339,16 @@
         let cy; // Canvasの中心座標は動的に設定
         let score = 0;
         let isGameOver = false;
+        
+        // --- 射撃クールダウン (タップ/加速度共通) ---
         let shootCooldown = false;
-        const SHOOT_COOLDOWN_TIME = 500;
+        const SHOOT_COOLDOWN_TIME = 500; // 射撃自体のクールダウン
+
+        // --- 加速度センサー用の変数 ---
+        let lastZAcceleration = 0; // 前回のZ軸の加速度
+        const SHOOT_ACCELERATION_THRESHOLD = 8; // 発射と判断するZ軸加速度のしきい値
+        const ACCELERATION_COOLDOWN_TIME = 800; // 加速度による射撃のクールダウン
+        let accelerationShootCooldown = false; // 加速度による射撃がクールダウン中か
 
         let comboCount = 0;
         let lastKillTime = 0;
@@ -364,6 +395,7 @@
             lastKillTime = 0;
             isGameOver = false;
             shootCooldown = false;
+            accelerationShootCooldown = false; // ゲーム開始時に加速度クールダウンもリセット
             scoreDisplay.textContent = "0";
             comboDisplay.textContent = "";
             comboDisplay.classList.remove("active");
@@ -379,23 +411,49 @@
                 audioContext = new (window.AudioContext || window.webkitAudioContext)();
             }
 
+            // DeviceOrientationEventとDeviceMotionEventの両方の許可をリクエスト
             if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
                 DeviceOrientationEvent.requestPermission()
                     .then(permissionState => {
                         if (permissionState === 'granted') {
                             window.addEventListener("deviceorientation", handleDeviceOrientation);
-                            startScreen.classList.add('hidden');
-                            initGame();
+                            // DeviceMotionEventの許可リクエストは不要な場合が多いですが、念のため
+                            if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
+                                DeviceMotionEvent.requestPermission()
+                                    .then(motionPermissionState => {
+                                        if (motionPermissionState === 'granted') {
+                                            window.addEventListener("devicemotion", handleDeviceMotion);
+                                            startScreen.classList.add('hidden');
+                                            initGame();
+                                        } else {
+                                            alert('加速度センサーの利用が拒否されました。体での射撃ができません。');
+                                            startScreen.classList.add('hidden'); // ジャイロのみで開始
+                                            initGame();
+                                        }
+                                    })
+                                    .catch(error => {
+                                        console.error("DeviceMotionEvent.requestPermission error:", error);
+                                        alert('加速度センサーの許可リクエスト中にエラーが発生しました。体での射撃はできません。');
+                                        startScreen.classList.add('hidden'); // ジャイロのみで開始
+                                        initGame();
+                                    });
+                            } else {
+                                window.addEventListener("devicemotion", handleDeviceMotion); // iOS13以外
+                                startScreen.classList.add('hidden');
+                                initGame();
+                            }
                         } else {
                             alert('ジャイロセンサーの利用が拒否されました。ゲームをプレイできません。ブラウザの設定で許可が必要な場合があります。');
                         }
                     })
                     .catch(error => {
                         console.error("DeviceOrientationEvent.requestPermission error:", error);
-                        alert('ジャイロセンサーの許可リクエスト中にエラーが発生しました。お使いのデバイスが対応しているか確認してください。');
+                        alert('センサーの許可リクエスト中にエラーが発生しました。お使いのデバイスが対応しているか確認してください。');
                     });
             } else {
+                // iOS 13より前のバージョンや、requestPermissionが不要なブラウザ
                 window.addEventListener("deviceorientation", handleDeviceOrientation);
+                window.addEventListener("devicemotion", handleDeviceMotion);
                 startScreen.classList.add('hidden');
                 initGame();
             }
@@ -407,6 +465,25 @@
                 // マップがスマホの動きの逆向きに動くようにするため、符号を反転させない
                 playerAngle = e.alpha * Math.PI / 180; // 0-360度をラジアンに変換
             }
+        }
+
+        function handleDeviceMotion(e) {
+            if (isGameOver || accelerationShootCooldown) return;
+
+            // 重力加速度を考慮しない線形加速度を取得 (Z軸は通常、デバイスの画面に垂直な方向)
+            const linearAccelerationZ = e.accelerationIncludingGravity.z; 
+
+            // Z軸の加速度が上向きに急激に変化した場合を検出
+            // デバイスを「持ち上げる」動きは、Z軸の加速度がプラス方向に大きくなる
+            if (linearAccelerationZ > SHOOT_ACCELERATION_THRESHOLD) {
+                // 加速度がしきい値を超えたら発射
+                triggerShootAction();
+                accelerationShootCooldown = true;
+                setTimeout(() => {
+                    accelerationShootCooldown = false;
+                }, ACCELERATION_COOLDOWN_TIME);
+            }
+            lastZAcceleration = linearAccelerationZ;
         }
 
         function spawnEnemy() {
@@ -563,6 +640,41 @@
             setTimeout(() => effect.remove(), 300);
         }
 
+        function createGlassShatterEffect(x, y) {
+            const numParticles = 10; // 生成する破片の数
+            for (let i = 0; i < numParticles; i++) {
+                const particle = document.createElement("div");
+                particle.className = "glass-shatter-particle";
+                
+                const size = Math.random() * 8 + 3; // 破片のサイズ
+                particle.style.width = `${size}px`;
+                particle.style.height = `${size}px`;
+
+                // ランダムな移動量と回転量、スケールを設定
+                const dx = (Math.random() - 0.5) * 150; // X方向の移動量
+                const dy = (Math.random() - 0.5) * 150; // Y方向の移動量
+                const rot = Math.random() * 360; // 回転角度
+                const scl = Math.random() * 0.5 + 0.5; // スケール
+                const dz = Math.random() * 50 - 25; // Z方向の移動量（奥行き感）
+
+                particle.style.left = `${x}px`;
+                particle.style.top = `${y}px`;
+                particle.style.setProperty('--dx', `${dx}px`);
+                particle.style.setProperty('--dy', `${dy}px`);
+                particle.style.setProperty('--rot', `${rot}deg`);
+                particle.style.setProperty('--scl', `${scl}`);
+                particle.style.setProperty('--dz', `${dz}px`);
+
+                particle.style.animation = `shatter 0.6s cubic-bezier(0.19, 1, 0.22, 1) forwards`; // アニメーション適用
+                particle.style.animationDelay = `${Math.random() * 0.1}s`; // 少し遅延させてバラつきを出す
+
+                document.body.appendChild(particle);
+
+                // アニメーション終了後に要素を削除
+                setTimeout(() => particle.remove(), 600);
+            }
+        }
+
         function showScorePopup(x, y, value, combo = 0) {
             const popup = document.createElement("div");
             popup.className = "score-popup";
@@ -591,14 +703,17 @@
             gameOverScreen.classList.add("visible");
         }
 
-        // 画面タップで射撃
-        canvas.addEventListener("click", (event) => {
+        // 射撃アクションをまとめた関数
+        function triggerShootAction() {
             if (isGameOver || shootCooldown) return;
 
-            // タップ位置に射撃エフェクトを表示
-            createShootVisual(event.clientX, event.clientY);
+            // 画面の中央から上に向かって射撃ビジュアルを表示
+            const shootX = cx;
+            const shootY = cy - 50; // プレイヤーから少し上に表示
+            createShootVisual(shootX, shootY);
             generateSound(880, 0.08, 'sine', 0.4);
-            vibrateDevice([20, 10, 20]);
+            // 撃った側の「ドンッ！」と強いバイブ
+            vibrateDevice([100, 50, 100]); 
             
             shootCooldown = true;
             setTimeout(() => {
@@ -623,6 +738,7 @@
                         const ex = cx + e.distance * Math.cos(e.angle + playerAngle); // 敵の現在の描画位置
                         const ey = cy + e.distance * Math.sin(e.angle + playerAngle);
                         createHitEffect(ex, ey);
+                        createGlassShatterEffect(ex, ey); // 撃たれた敵にガラス破砕演出
                         const currentTime = performance.now();
                         if (currentTime - lastKillTime < COMBO_RESET_TIME) {
                             comboCount++;
@@ -654,13 +770,19 @@
                         updateScore(points);
                         showScorePopup(ex, ey, points, comboCount);
                         hit = true;
-                        vibrateDevice([40, 30, 40]);
+                        // 撃破時のバイブレーションも変更
+                        vibrateDevice([50, 20, 50, 20, 50]); 
                         generateSound(1000, 0.1, 'triangle', 0.5);
                         return false;
                     }
                 }
                 return true;
             });
+        }
+
+        // 画面タップで射撃
+        canvas.addEventListener("click", (event) => {
+            triggerShootAction();
         });
 
         restartButton.addEventListener("click", () => {
