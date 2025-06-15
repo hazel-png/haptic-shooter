@@ -403,8 +403,8 @@
 
             oscillator.type = type;
             oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
-            gainNode.gain.setValueAtTime(volume, audioContext.currentTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + duration);
+            gainNode.gain.setValueAtTime(0.0001, audioContext.currentTime + duration); // Exponential decay
+            gainNode.gain.linearRampToValueAtTime(0.0001, audioContext.currentTime + duration); // Fallback for some browsers
 
             oscillator.start(audioContext.currentTime);
             oscillator.stop(audioContext.currentTime + duration);
@@ -488,9 +488,10 @@
         function handleDeviceOrientation(e) {
             if (e.alpha !== null) {
                 // alphaは0-360度で、真北からの時計回り。
-                // -e.alpha * Math.PI / 180 とすることで、デバイスの回転と画面の回転が一致する
-                // (デバイスが時計回りに回転すると、レーダーの表示が反時計回りに回転する)
-                deviceOrientationOffset = -e.alpha * Math.PI / 180;
+                // deviceOrientationOffset には -e.alpha を格納し、
+                // これをそのまま ctx.rotate() に渡すと、デバイスの回転と画面の回転が一致します。
+                // 今回は逆方向なので、そのまま e.alpha の値を渡します。
+                deviceOrientationOffset = e.alpha * Math.PI / 180;
             }
         }
 
@@ -568,10 +569,10 @@
             ctx.arc(cx, cy, Math.min(canvas.width, canvas.height) * 0.4, 0, 2 * Math.PI);
             ctx.fill();
 
-            // ゾーン枠と敵の描画はデバイスの向きに合わせて回転
+            // ゾーン枠と敵の描画はデバイスの向きに合わせて逆回転
             ctx.save();
             ctx.translate(cx, cy);
-            ctx.rotate(-deviceOrientationOffset); // デバイスの向きのオフセットを適用
+            ctx.rotate(deviceOrientationOffset); // デバイスの向きのオフセットを「そのまま」適用して逆回転
             ctx.translate(-cx, -cy);
 
             // ゾーン枠を色相環グラデーションで描画（回転する）
@@ -860,9 +861,16 @@
                 if (e.canBeAttacked && diff < fanAngle / 2) {
                     e.health--;
                     if (e.health <= 0) {
+                        // 敵の描画位置は回転後の座標で計算されているので、そのまま使用
                         const ex = cx + e.distance * Math.cos(e.angle);
                         const ey = cy + e.distance * Math.sin(e.angle);
-                        createHitParticles(ex, ey, 15);
+                        
+                        // パーティクルとポップアップの位置を、逆回転を考慮して調整
+                        // ここで deviceOrientationOffset を「加算」することで、画面の固定座標系に変換
+                        const adjustedEx = cx + (ex - cx) * Math.cos(-deviceOrientationOffset) - (ey - cy) * Math.sin(-deviceOrientationOffset);
+                        const adjustedEy = cy + (ex - cx) * Math.sin(-deviceOrientationOffset) + (ey - cy) * Math.cos(-deviceOrientationOffset);
+
+                        createHitParticles(adjustedEx, adjustedEy, 15);
                         
                         const currentTime = performance.now();
                         if (currentTime - lastKillTime < COMBO_RESET_TIME) {
@@ -915,7 +923,7 @@
                             points = Math.floor(points * (1 + comboCount * 0.2));
                         }
                         updateScore(points);
-                        showScorePopup(ex, ey, points, comboCount);
+                        showScorePopup(adjustedEx, adjustedEy, points, comboCount); // 調整済みの座標を渡す
                         vibrateDevice([40, 30, 40]);
                         generateSound(1000, 0.1, 'triangle', 0.5);
                         return false;
