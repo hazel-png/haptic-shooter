@@ -533,7 +533,6 @@
                 e.distance -= e.speed;
 
                 // 敵がプレイヤーに触れたらゲームオーバー
-                // 敵のサイズも考慮に入れる
                 const enemySize = Math.min(canvas.width, canvas.height) * 0.4 * 0.025;
                 if (e.distance <= playerCircleRadius + enemySize) {
                     endGame();
@@ -552,8 +551,7 @@
                     generateSound(440, 0.05, 'sawtooth', 0.3);
                 }
             });
-            // ゲームオーバーになった敵はここでフィルターしない (endGameでまとめて処理)
-            const enemySizePlaceholder = Math.min(canvas.width, canvas.height) * 0.4 * 0.025; // フィルター用の一時的な敵サイズ
+            const enemySizePlaceholder = Math.min(canvas.width, canvas.height) * 0.4 * 0.025;
             enemies = enemies.filter(e => e.distance > playerCircleRadius + enemySizePlaceholder);
         }
 
@@ -573,16 +571,16 @@
             ctx.shadowOffsetY = 0;
             ctx.lineWidth = 6;
 
-            const hueGradient = ctx.createConicGradient(0, cx, cy); // 0は開始角度 (真上)
-            hueGradient.addColorStop(0, 'hsl(0, 100%, 70%)');    // 赤
-            hueGradient.addColorStop(0.16, 'hsl(60, 100%, 70%)'); // 黄
-            hueGradient.addColorStop(0.33, 'hsl(120, 100%, 70%)'); // 緑
-            hueGradient.addColorStop(0.5, 'hsl(180, 100%, 70%)'); // シアン
-            hueGradient.addColorStop(0.66, 'hsl(240, 100%, 70%)'); // 青
-            hueGradient.addColorStop(0.83, 'hsl(300, 100%, 70%)'); // マゼンタ
-            hueGradient.addColorStop(1, 'hsl(360, 100%, 70%)');   // 赤 (一周)
+            const zoneHueGradient = ctx.createConicGradient(0, cx, cy); // 0は開始角度 (真上)
+            zoneHueGradient.addColorStop(0, 'hsl(0, 100%, 70%)');    // 赤
+            zoneHueGradient.addColorStop(0.16, 'hsl(60, 100%, 70%)'); // 黄
+            zoneHueGradient.addColorStop(0.33, 'hsl(120, 100%, 70%)'); // 緑
+            zoneHueGradient.addColorStop(0.5, 'hsl(180, 100%, 70%)'); // シアン
+            zoneHueGradient.addColorStop(0.66, 'hsl(240, 100%, 70%)'); // 青
+            zoneHueGradient.addColorStop(0.83, 'hsl(300, 100%, 70%)'); // マゼンタ
+            zoneHueGradient.addColorStop(1, 'hsl(360, 100%, 70%)');   // 赤 (一周)
 
-            ctx.strokeStyle = hueGradient;
+            ctx.strokeStyle = zoneHueGradient;
             ctx.beginPath();
             ctx.arc(cx, cy, attackZoneRadius, 0, 2 * Math.PI);
             ctx.stroke();
@@ -659,31 +657,69 @@
             });
             ctx.restore();
 
-            // 扇形のグリーンゾーン（プレイヤーの方向）の描画
+            // 扇形（攻撃範囲）の描画
             const fanInnerRadius = playerCircleRadius;
             const fanOuterRadius = attackZoneRadius;
-            const fanAngle = Math.PI * 30 / 180;
-            const startAngle = -Math.PI / 2 - fanAngle / 2;
-            const endAngle = -Math.PI / 2 + fanAngle / 2;
+            const fanAngle = Math.PI * 30 / 180; // 30度
 
-            const fanGradient = ctx.createRadialGradient(cx, cy, fanInnerRadius, cx, cy, fanOuterRadius);
-            fanGradient.addColorStop(0, 'rgba(0, 255, 90, 0.8)');
-            fanGradient.addColorStop(0.5, 'rgba(0, 255, 90, 0.5)');
-            fanGradient.addColorStop(0.9, 'rgba(0, 255, 90, 0.1)');
-            fanGradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            // 扇形の中心が真上（-PI/2）になるように調整
+            const fanStartAngle = -Math.PI / 2 - fanAngle / 2;
+            const fanEndAngle = -Math.PI / 2 + fanAngle / 2;
 
-            ctx.shadowColor = "rgba(0, 255, 90, 0.5)";
+            // 扇形のグラデーション（コニックグラデーションを適用）
+            // 扇形の中心から外側に向かって色相が変化するように調整
+            const fanHueGradient = ctx.createConicGradient(-Math.PI / 2, cx, cy); // 扇の向き（真上）を開始点とする
+            fanHueGradient.addColorStop(0, 'hsl(0, 100%, 70%, 0.9)');    // 赤 (真上)
+            fanHueGradient.addColorStop(0.1, 'hsl(60, 100%, 70%, 0.7)'); // 黄
+            fanHueGradient.addColorStop(0.2, 'hsl(120, 100%, 70%, 0.5)'); // 緑
+            fanHueGradient.addColorStop(0.3, 'hsl(180, 100%, 70%, 0.3)'); // シアン
+            fanHueGradient.addColorStop(0.4, 'hsl(240, 100%, 70%, 0.2)'); // 青
+            fanHueGradient.addColorStop(0.5, 'hsl(300, 100%, 70%, 0.1)'); // マゼンタ
+            fanHueGradient.addColorStop(1, 'hsl(360, 100%, 70%, 0)');   // 赤 (透明に)
+
+            // グラデーションが扇形の範囲に収まるように、停止点を調整
+            // 扇形の中心から両端に向かって色がフェードアウトするようにする
+            // fanAngleが30度(PI/6)なので、中心から左右15度(PI/12)ずつ
+            const halfFanAngleRatio = (fanAngle / 2) / (2 * Math.PI); // 全周に対する扇形半分の比率
+
+            const fanGradientStops = [
+                { offset: 0.0, color: `hsl(0, 100%, 70%, 0.9)` }, // 扇形の中心（真上）
+                { offset: halfFanAngleRatio * 0.5, color: `hsl(30, 100%, 70%, 0.7)` }, // 中心から少し離れた場所
+                { offset: halfFanAngleRatio * 1.0, color: `hsl(60, 100%, 70%, 0.5)` }, // 扇の端近く
+                { offset: halfFanAngleRatio * 1.5, color: `hsl(90, 100%, 70%, 0.3)` }, // 扇の外側に向かって透明に
+                { offset: halfFanAngleRatio * 2.0, color: `hsl(120, 100%, 70%, 0.1)` }, // 完全に透明に
+            ];
+
+            const dynamicFanGradient = ctx.createConicGradient(fanStartAngle + fanAngle / 2, cx, cy);
+            // 色相の範囲を扇形の角度に合わせて調整 (例: 真上を中心に左右15度ずつで色相を変化させる)
+            // この場合、真上を0度として、左右に-15度から+15度まで変化させる
+            // -15度は345度、+15度は15度
+            const hueOffset = -deviceOrientationOffset * 180 / Math.PI; // 向きを考慮した色相オフセット
+
+            for (let i = 0; i <= 10; i++) {
+                const angleRatio = (i / 10) * fanAngle - fanAngle / 2; // 扇形内の相対角度 (-fanAngle/2 から +fanAngle/2)
+                const globalAngle = normalizeAngle(-Math.PI / 2 + angleRatio); // 絶対角度
+                const hue = (globalAngle / (2 * Math.PI)) * 360; // 角度を色相に変換
+                const alpha = 0.9 - (Math.abs(angleRatio) / (fanAngle / 2)) * 0.8; // 中心が濃く、外側が薄くなるように透過度を調整
+
+                dynamicFanGradient.addColorStop(
+                    (angleRatio + fanAngle / 2) / fanAngle, // グラデーションの停止位置 (0から1)
+                    `hsl(${hue}, 100%, 70%, ${Math.max(0, alpha)})` // 色と透過度
+                );
+            }
+
+            ctx.shadowColor = "rgba(255, 255, 255, 0.5)"; // 影の色は白系で統一
             ctx.shadowBlur = 25;
             ctx.shadowOffsetX = 0;
             ctx.shadowOffsetY = 0;
 
             ctx.beginPath();
-            ctx.moveTo(cx + fanInnerRadius * Math.cos(startAngle), cy + fanInnerRadius * Math.sin(startAngle));
-            ctx.arc(cx, cy, fanOuterRadius, startAngle, endAngle);
-            ctx.lineTo(cx + fanInnerRadius * Math.cos(endAngle), cy + fanInnerRadius * Math.sin(endAngle));
-            ctx.arc(cx, cy, fanInnerRadius, endAngle, startAngle, true);
+            ctx.moveTo(cx + fanInnerRadius * Math.cos(fanStartAngle), cy + fanInnerRadius * Math.sin(fanStartAngle));
+            ctx.arc(cx, cy, fanOuterRadius, fanStartAngle, fanEndAngle);
+            ctx.lineTo(cx + fanInnerRadius * Math.cos(fanEndAngle), cy + fanInnerRadius * Math.sin(fanEndAngle));
+            ctx.arc(cx, cy, fanInnerRadius, fanEndAngle, fanStartAngle, true);
             ctx.closePath();
-            ctx.fillStyle = fanGradient;
+            ctx.fillStyle = dynamicFanGradient; // 新しいグラデーションを適用
             ctx.fill();
 
             ctx.shadowBlur = 0;
