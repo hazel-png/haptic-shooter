@@ -374,7 +374,7 @@
         const SHAKE_COOLDOWN = 500;
 
         let attackZoneRadius;
-        let playerCircleRadius; // プレイヤーの半径もグローバルで扱う
+        let playerCircleRadius;
 
         // Canvasの論理サイズと中心座標を設定する関数
         function setCanvasDimensions() {
@@ -382,8 +382,8 @@
             canvas.height = window.innerHeight;
             cx = canvas.width / 2;
             cy = canvas.height / 2;
-            attackZoneRadius = Math.min(canvas.width, canvas.height) * 0.3;
-            playerCircleRadius = Math.min(canvas.width, canvas.height) * 0.4 * 0.1; // drawRadar() から移動
+            attackZoneRadius = Math.min(canvas.width, canvas.height) * 0.45; // ゾーンの半径を大きく
+            playerCircleRadius = Math.min(canvas.width, canvas.height) * 0.4 * 0.1;
         }
 
         // バイブレーション関数を抽象化
@@ -533,9 +533,11 @@
                 e.distance -= e.speed;
 
                 // 敵がプレイヤーに触れたらゲームオーバー
-                if (e.distance <= playerCircleRadius + (Math.min(canvas.width, canvas.height) * 0.4 * 0.025)) { // 敵の半径も考慮
+                // 敵のサイズも考慮に入れる
+                const enemySize = Math.min(canvas.width, canvas.height) * 0.4 * 0.025;
+                if (e.distance <= playerCircleRadius + enemySize) {
                     endGame();
-                    return; // ゲームオーバーになったらこれ以上更新しない
+                    return;
                 }
 
                 if (!e.canBeAttacked && e.distance <= attackZoneRadius) {
@@ -551,23 +553,36 @@
                 }
             });
             // ゲームオーバーになった敵はここでフィルターしない (endGameでまとめて処理)
-            enemies = enemies.filter(e => e.distance > playerCircleRadius + (Math.min(canvas.width, canvas.height) * 0.4 * 0.025)); // プレイヤーに到達した敵は削除
+            const enemySizePlaceholder = Math.min(canvas.width, canvas.height) * 0.4 * 0.025; // フィルター用の一時的な敵サイズ
+            enemies = enemies.filter(e => e.distance > playerCircleRadius + enemySizePlaceholder);
         }
 
         function drawRadar() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+            // レーダーの半透明ガラス質感（中心部分）
             ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
             ctx.beginPath();
             ctx.arc(cx, cy, Math.min(canvas.width, canvas.height) * 0.4, 0, 2 * Math.PI);
             ctx.fill();
 
-            ctx.shadowColor = "rgba(0, 255, 90, 0.5)";
+            // ゾーン枠を色相環グラデーションで描画
+            ctx.shadowColor = "rgba(255, 255, 255, 0.5)"; // 影の色は白系で統一
             ctx.shadowBlur = 20;
             ctx.shadowOffsetX = 0;
             ctx.shadowOffsetY = 0;
-            ctx.strokeStyle = "#00FF5A";
             ctx.lineWidth = 6;
+
+            const hueGradient = ctx.createConicGradient(0, cx, cy); // 0は開始角度 (真上)
+            hueGradient.addColorStop(0, 'hsl(0, 100%, 70%)');    // 赤
+            hueGradient.addColorStop(0.16, 'hsl(60, 100%, 70%)'); // 黄
+            hueGradient.addColorStop(0.33, 'hsl(120, 100%, 70%)'); // 緑
+            hueGradient.addColorStop(0.5, 'hsl(180, 100%, 70%)'); // シアン
+            hueGradient.addColorStop(0.66, 'hsl(240, 100%, 70%)'); // 青
+            hueGradient.addColorStop(0.83, 'hsl(300, 100%, 70%)'); // マゼンタ
+            hueGradient.addColorStop(1, 'hsl(360, 100%, 70%)');   // 赤 (一周)
+
+            ctx.strokeStyle = hueGradient;
             ctx.beginPath();
             ctx.arc(cx, cy, attackZoneRadius, 0, 2 * Math.PI);
             ctx.stroke();
@@ -575,11 +590,13 @@
             ctx.shadowBlur = 0;
             ctx.shadowColor = "rgba(0, 0, 0, 0)";
 
+            // 敵の描画はデバイスの向きに合わせて回転
             ctx.save();
             ctx.translate(cx, cy);
             ctx.rotate(-deviceOrientationOffset);
             ctx.translate(-cx, -cy);
 
+            // 敵（シンプルな幾何学的アイコン）の描画
             const radarMaxRadius = Math.min(canvas.width, canvas.height) * 0.4;
             enemies.forEach(e => {
                 const relativeAngle = e.angle;
@@ -591,7 +608,7 @@
                 let enemyColor;
                 let blurAmount = 0;
 
-                if (e.canBeAttacked) {
+                if (e.canBeAttacked) { // ゾーン内
                     const distanceRatioInZone = e.distance / attackZoneRadius;
                     if (distanceRatioInZone < 0.3) {
                         const ratio = distanceRatioInZone / 0.3;
@@ -609,7 +626,7 @@
                         enemyColor = e.initialColor;
                     }
                     blurAmount = 0;
-                } else {
+                } else { // ゾーン外
                     const initialHue = (e.angle / (2 * Math.PI)) * 360;
                     enemyColor = `hsl(${initialHue}, 10%, 30%)`;
                     blurAmount = 1;
@@ -621,6 +638,7 @@
                 const fanAngle = Math.PI * 30 / 180;
                 const diff = Math.abs(normalizeAngle(e.angle - shootAngle));
 
+                // 敵照準でのボーダー色変化（攻撃可能かつ照準に入っている場合）
                 if (e.canBeAttacked && diff < fanAngle / 2) {
                     e.isTargeted = true;
                     ctx.strokeStyle = "#00FF5A";
@@ -641,18 +659,18 @@
             });
             ctx.restore();
 
-            // プレイヤーと扇形は常に上を向く
+            // 扇形のグリーンゾーン（プレイヤーの方向）の描画
             const fanInnerRadius = playerCircleRadius;
             const fanOuterRadius = attackZoneRadius;
             const fanAngle = Math.PI * 30 / 180;
             const startAngle = -Math.PI / 2 - fanAngle / 2;
             const endAngle = -Math.PI / 2 + fanAngle / 2;
 
-            const gradient = ctx.createRadialGradient(cx, cy, fanInnerRadius, cx, cy, fanOuterRadius);
-            gradient.addColorStop(0, 'rgba(0, 255, 90, 0.8)');
-            gradient.addColorStop(0.5, 'rgba(0, 255, 90, 0.5)');
-            gradient.addColorStop(0.9, 'rgba(0, 255, 90, 0.1)');
-            gradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            const fanGradient = ctx.createRadialGradient(cx, cy, fanInnerRadius, cx, cy, fanOuterRadius);
+            fanGradient.addColorStop(0, 'rgba(0, 255, 90, 0.8)');
+            fanGradient.addColorStop(0.5, 'rgba(0, 255, 90, 0.5)');
+            fanGradient.addColorStop(0.9, 'rgba(0, 255, 90, 0.1)');
+            fanGradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
 
             ctx.shadowColor = "rgba(0, 255, 90, 0.5)";
             ctx.shadowBlur = 25;
@@ -665,12 +683,13 @@
             ctx.lineTo(cx + fanInnerRadius * Math.cos(endAngle), cy + fanInnerRadius * Math.sin(endAngle));
             ctx.arc(cx, cy, fanInnerRadius, endAngle, startAngle, true);
             ctx.closePath();
-            ctx.fillStyle = gradient;
+            ctx.fillStyle = fanGradient;
             ctx.fill();
 
             ctx.shadowBlur = 0;
             ctx.shadowColor = "rgba(0, 0, 0, 0)";
 
+            // プレイヤーを緑色の円に白いボーダーつきで描画
             ctx.shadowColor = "rgba(0, 255, 90, 0.8)";
             ctx.shadowBlur = 20;
             ctx.shadowOffsetX = 0;
@@ -682,7 +701,7 @@
             ctx.fill();
             
             ctx.strokeStyle = '#FFFFFF';
-            ctx.lineWidth = 8; // ボーダーの太さ
+            ctx.lineWidth = 8;
             ctx.beginPath();
             ctx.arc(cx, cy, playerCircleRadius + 4, 0, 2 * Math.PI);
             ctx.stroke();
