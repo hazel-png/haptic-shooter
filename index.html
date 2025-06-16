@@ -24,9 +24,10 @@
             
             /* --- 背景画像の追加 --- */
             background-image: url('your-background-image.jpg'); /* ここに画像のパスを指定 */
-            background-size: cover; /* 画面全体を覆うように */
             background-position: center; /* 画像を中央に配置 */
             background-repeat: no-repeat; /* 画像の繰り返しをなくす */
+            /* 背景を大きく表示するための調整 */
+            background-size: 150% auto; /* 画像を画面の150%に拡大。'auto'で縦横比を維持 */
         }
 
         body::before {
@@ -36,17 +37,15 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background-color: rgba(0, 0, 0, 0.9); /* 黒のオーバーレイ、透明度で暗さを調整 */
-            backdrop-filter: blur(64px); /* ブラーの強度を調整 */
+            background-color: rgba(0, 0, 0, 0.9); /* 黒のオーバーレイの透明度を0.9に変更 */
+            backdrop-filter: blur(64px); /* ブラーの強度を64pxに変更 */
             -webkit-backdrop-filter: blur(64px); /* Safari対応 */
             z-index: -1; /* 背景画像のすぐ上に配置 */
-            
-            /* --- ここから追加・変更 --- */
-            transform-style: preserve-3d;
-            /* JavaScriptで設定されるカスタムプロパティで回転 */
-            transform: rotateZ(var(--bg-rotation, 0deg)); 
-            transition: transform 0.1s linear; /* スムーズな回転のためのトランジション */
-            /* --- ここまで追加・変更 --- */
+            /* 背景画像を回転させるためのtransform-originを追加 */
+            transform-origin: center center; 
+            /* 初期状態の回転と、JavaScriptで更新される変数 */
+            transform: rotate(var(--bg-rotation, 0deg)); 
+            transition: transform 0.1s linear; /* 回転を滑らかにするためのトランジション */
         }
 
         #radarCanvas {
@@ -57,18 +56,8 @@
             left: 0;
             z-index: 1;
             background: radial-gradient(circle at center, rgba(255, 255, 255, 0.03) 0%, rgba(0, 0, 0, 0) 70%);
-            /* レーダーCanvas自体はデバイスの回転には影響されないようにする */
-            /* transform: translateZ(-100px); <- これを削除またはコメントアウト */
+            transform: translateZ(-100px);
         }
-        /* radarCanvasのz-indexとtransformを調整することで、
-           Canvas上のドットが手前に、背景が奥に回るようにする */
-        #radarCanvas {
-            transform: translateZ(50px); /* Canvasを手前に */
-        }
-        body::before {
-            z-index: -1; /* 背景を奥に */
-        }
-
 
         .shoot-visual {
             position: absolute;
@@ -136,6 +125,7 @@
             }
         }
 
+        /* ガラス破砕エフェクトの基本スタイル */
         .glass-shatter-particle {
             position: absolute;
             background: rgba(255, 255, 255, 0.7);
@@ -146,6 +136,7 @@
             opacity: 0;
         }
 
+        /* ガラス破砕アニメーション */
         @keyframes shatter {
             0% {
                 transform: translate(0, 0) rotate(0deg) scale(1) translateZ(0px);
@@ -433,10 +424,7 @@
             comboDisplay.textContent = "";
             comboDisplay.classList.remove("active");
             gameOverScreen.classList.remove("visible");
-            playerAngle = 0; // ゲーム開始時に角度をリセット
-            // 背景の回転もリセット
-            document.body.style.setProperty('--bg-rotation', '0deg');
-
+            playerAngle = 0;
             if (enemySpawnInterval) clearInterval(enemySpawnInterval);
             enemySpawnInterval = setInterval(spawnEnemy, 1500);
             gameLoop();
@@ -491,25 +479,16 @@
                 initGame();
             }
         }
-
-        // --- ここが変更された部分 ---
         function handleDeviceOrientation(e) {
             if (e.alpha !== null) {
-                // デバイスのZ軸周りの回転 (方位) を取得 (0-360度)
-                const alphaDegrees = e.alpha; 
-                
-                // 背景を逆方向に回転させるため、角度を反転させる
-                // 例: デバイスが右に回ると (alpha増加)、背景は左に回る (角度減少)
-                const bgRotationDegrees = -alphaDegrees; 
+                playerAngle = e.alpha * Math.PI / 180;
 
-                // CSSカスタムプロパティを更新
-                document.body.style.setProperty('--bg-rotation', `${bgRotationDegrees}deg`);
-
-                // 敵の相対位置計算には引き続きplayerAngle (デバイスの回転) を使用
-                // playerAngle = e.alpha * Math.PI / 180; // これはそのまま
+                // 背景画像を逆方向に回転させる
+                // playerAngleは時計回りが正なので、背景は-playerAngleにする
+                // さらに、CSS変数として度数に変換して設定
+                document.body.style.setProperty('--bg-rotation', `${-e.alpha}deg`);
             }
         }
-        // --- 変更ここまで ---
 
         function handleDeviceMotion(e) {
             if (isGameOver || accelerationShootCooldown) return;
@@ -545,8 +524,6 @@
                     generateSound(440, 0.05, 'sawtooth', 0.3);
                 }
                 if (e.distance < 100 && Math.random() < 0.1) {
-                    // 敵のワールド座標を計算し、パーティクルを生成
-                    // playerAngle は、レーダーCanvas上の敵の描画位置に影響を与えるのでそのまま使用
                     const ex = cx + e.distance * Math.cos(e.angle + playerAngle);
                     const ey = cy + e.distance * Math.sin(e.angle + playerAngle);
                     createEnemyParticle(ex, ey);
@@ -615,15 +592,12 @@
             ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.moveTo(cx, cy);
-            // 照準は常に画面の上方向 (CanvasのY軸負方向) を指す
             ctx.lineTo(cx, cy - 80); 
             ctx.stroke();
 
             // 敵の描画
             enemies.forEach(e => {
-                // 敵の角度にプレイヤーアングル（デバイスの向き）を適用して回転させる
-                // ここでのplayerAngleはデバイスの絶対的な向きを表す
-                const rotatedAngle = e.angle + playerAngle; 
+                const rotatedAngle = e.angle + playerAngle;
                 const ex = cx + e.distance * Math.cos(rotatedAngle);
                 const ey = cy + e.distance * Math.sin(rotatedAngle);
 
