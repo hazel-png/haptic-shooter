@@ -40,10 +40,10 @@
         /* 回転する背景画像用のコンテナ */
         #backgroundRotator {
             position: fixed;
-            top: -50%; /* 画面中央を中心に回転させるため、大きめに設定 */
-            left: -50%; /* 画面中央を中心に回転させるため、大きめに設定 */
-            width: 200vw; /* 画面サイズの2倍（回転しても空白が見えないように） */
-            height: 200vh; /* 画面サイズの2倍（回転しても空白が見えないように） */
+            top: -25%; /* 画面中央を中心に回転させるため、大きめに設定 (50%から25%に変更) */
+            left: -25%; /* 画面中央を中心に回転させるため、大きめに設定 (50%から25%に変更) */
+            width: 150vw; /* 画面サイズの1.5倍に縮小 */
+            height: 150vh; /* 画面サイズの1.5倍に縮小 */
             background-image: url('your-background-image.jpg'); /* ★ここにタイル化する画像のパスを指定★ */
             background-repeat: repeat; /* 画像をタイル状に繰り返す */
             background-size: auto; /* 元の画像サイズでタイル化。必要に応じて '200px 200px' など調整可能 */
@@ -412,8 +412,8 @@
 
             oscillator.type = type;
             oscillator.frequency.setValueAtTime(frequency, audioContext.currentTime);
-            gainNode.gain.setValueAtTime(volume, audioContext.currentTime);
-            gainNode.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + duration);
+            gainNode.gain.setValueAtTime(0.0001, audioContext.currentTime + duration); // 確実にフェードアウトさせる
+            gainNode.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + duration); //exponentialRampToValueAtTimeは既に設定されているので冗長
 
             oscillator.start(audioContext.currentTime);
             oscillator.stop(audioContext.currentTime + duration);
@@ -495,9 +495,8 @@
                 // マップがスマホの動きの逆向きに動くようにするため、符号を反転させない
                 playerAngle = e.alpha * Math.PI / 180; // 0-360度をラジアンに変換
 
-                // 背景画像をプレイヤーの回転と連動させる
-                // 背景画像はプレイヤーが回るのと同じ方向に回したいので、-e.alpha にする
-                backgroundRotator.style.transform = `rotate(${-e.alpha}deg)`; 
+                // 背景画像をプレイヤーの回転とは逆方向に連動させる (今回はデバイスと同じ方向にする)
+                backgroundRotator.style.transform = `rotate(${e.alpha}deg)`; 
             }
         }
 
