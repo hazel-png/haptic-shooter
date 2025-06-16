@@ -19,16 +19,11 @@
             position: relative;
             user-select: none;
             -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
+            -moz-osx-smoothing: grayscale;
             perspective: 1000px;
-            
-            /* --- 背景画像の追加 --- */
-            background-image: url('your-background-image.jpg'); /* ここに画像のパスを指定 */
-            background-size: cover; /* 画面全体を覆うように */
-            background-position: center; /* 画像を中央に配置 */
-            background-repeat: no-repeat; /* 画像の繰り返しをなくす */
         }
 
+        /* 背景画像の上に重ねる、ブラーと黒のオーバーレイ */
         body::before {
             content: '';
             position: absolute;
@@ -36,26 +31,43 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background-color: rgba(0, 0, 0, 0.7); /* 黒のオーバーレイ、透明度で暗さを調整 */
-            backdrop-filter: blur(20px); /* ここでブラーの強度を調整 */
-            -webkit-backdrop-filter: blur(20px); /* Safari対応 */
+            background-color: rgba(0, 0, 0, 0.9); /* 黒のオーバーレイ、透明度で暗さを調整 */
+            backdrop-filter: blur(64px); /* ここでブラーの強度を調整 */
+            -webkit-backdrop-filter: blur(64px); /* Safari対応 */
             z-index: -1; /* 背景画像のすぐ上に配置 */
         }
 
+        /* 回転する背景画像用のコンテナ */
+        #backgroundRotator {
+            position: fixed;
+            top: -50%; /* 画面中央を中心に回転させるため、大きめに設定 */
+            left: -50%; /* 画面中央を中心に回転させるため、大きめに設定 */
+            width: 200vw; /* 画面サイズの2倍（回転しても空白が見えないように） */
+            height: 200vh; /* 画面サイズの2倍（回転しても空白が見えないように） */
+            background-image: url('your-background-image.jpg'); /* ★ここにタイル化する画像のパスを指定★ */
+            background-repeat: repeat; /* 画像をタイル状に繰り返す */
+            background-size: auto; /* 元の画像サイズでタイル化。必要に応じて '200px 200px' など調整可能 */
+            background-position: center center; /* タイルの開始位置を中央に */
+            transform-origin: 50% 50%; /* 回転の中心を要素の中央に設定 */
+            z-index: -2; /* body::before (z-index: -1) より奥に配置 */
+            will-change: transform; /* パフォーマンス向上のため */
+        }
+
         #radarCanvas {
-            touch-action: none;
+            touch-action: none; /* ピンチズームやパンを無効化 */
             display: block;
             position: absolute;
             top: 0;
             left: 0;
             z-index: 1;
+            /* レーダーの背景グラデーションを削除または調整することも検討 */
             background: radial-gradient(circle at center, rgba(255, 255, 255, 0.03) 0%, rgba(0, 0, 0, 0) 70%);
             transform: translateZ(-100px);
         }
 
         .shoot-visual {
             position: absolute;
-            background: rgba(77, 227, 75, 0.5);
+            background: rgba(77, 227, 75, 0.5); /* プレイヤー色に合わせて緑に */
             border-radius: 50%;
             transform: translate(-50%, -50%) scale(0) translateZ(25px);
             opacity: 0;
@@ -77,7 +89,7 @@
 
         .hit-effect {
             position: absolute;
-            background: radial-gradient(circle, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.6) 40%, rgba(255, 255, 255, 0) 70%);
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.6) 40%, rgba(255, 255, 255, 0) 70%); /* ヒットエフェクトを白に */
             border-radius: 50%;
             animation: hitEffect 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
             pointer-events: none;
@@ -99,7 +111,7 @@
 
         .enemy-particle {
             position: absolute;
-            background: rgba(255, 255, 255, 0.9);
+            background: rgba(255, 255, 255, 0.9); /* 敵のパーティクルは白 */
             border-radius: 50%;
             opacity: 0;
             animation: particleFade 0.8s ease-out forwards;
@@ -122,12 +134,12 @@
         /* ガラス破砕エフェクトの基本スタイル */
         .glass-shatter-particle {
             position: absolute;
-            background: rgba(255, 255, 255, 0.7);
-            border-radius: 1px;
+            background: rgba(255, 255, 255, 0.7); /* 白い破片 */
+            border-radius: 1px; /* 小さな四角形で破片を表現 */
             pointer-events: none;
-            z-index: 8;
+            z-index: 8; /* 他のエフェクトより前面に */
             transform-style: preserve-3d;
-            opacity: 0;
+            opacity: 0; /* 最初は非表示 */
         }
 
         /* ガラス破砕アニメーション */
@@ -144,7 +156,7 @@
 
         .score-popup {
             position: absolute;
-            color: rgba(77, 227, 75, 1);
+            color: rgba(77, 227, 75, 1); /* スコアポップアップを緑に */
             font-size: clamp(1rem, 4.5vw, 1.6rem);
             font-weight: 700;
             font-family: inherit;
@@ -172,11 +184,11 @@
 
         #scoreDisplay {
             position: fixed;
-            top: 2.5vh;
-            left: 4vw;
+            top: 2.5vh; /* 調整 */
+            left: 4vw; /* 調整 */
             font-size: clamp(2rem, 8vw, 3.5rem);
             font-weight: 700;
-            color: #f0f0f0;
+            color: #f0f0f0; /* スコア表示を白っぽい色に */
             text-shadow: 0 3px 10px rgba(0, 0, 0, 0.08);
             z-index: 10;
             font-family: inherit;
@@ -185,11 +197,11 @@
 
         #comboDisplay {
             position: fixed;
-            top: 9vh;
-            left: 4vw;
+            top: 9vh; /* 調整 */
+            left: 4vw; /* 調整 */
             font-size: clamp(1.5rem, 6vw, 2.5rem);
             font-weight: 700;
-            color: rgba(77, 227, 75, 1);
+            color: rgba(77, 227, 75, 1); /* コンボ表示を緑に */
             text-shadow: 0 2px 8px rgba(77, 227, 75, 0.2);
             z-index: 10;
             font-family: inherit;
@@ -210,14 +222,14 @@
             left: 0;
             width: 100vw;
             height: 100vh;
-            background: rgba(0, 0, 0, 0.8);
+            background: rgba(0, 0, 0, 0.8); /* ゲームオーバー画面の背景を半透明の黒に */
             backdrop-filter: blur(35px) saturate(1.3);
             -webkit-backdrop-filter: blur(35px) saturate(1.3);
             display: flex;
             flex-direction: column;
             justify-content: center;
             align-items: center;
-            color: #f0f0f0;
+            color: #f0f0f0; /* 文字色を明るく調整 */
             font-size: 2rem;
             z-index: 100;
             opacity: 0;
@@ -236,7 +248,7 @@
 
         #gameOverScreen h2 {
             font-size: clamp(3rem, 12vw, 6rem);
-            color: #ffffff;
+            color: #ffffff; /* GAME OVERの文字を白に */
             margin-bottom: 25px;
             text-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
             font-weight: 700;
@@ -245,8 +257,8 @@
 
         #finalScore {
             font-size: clamp(2rem, 8vw, 4rem);
-            margin-bottom: 5vh;
-            color: rgba(77, 227, 75, 1);
+            margin-bottom: 5vh; /* 調整 */
+            color: rgba(77, 227, 75, 1); /* 最終スコアを緑に */
             text-shadow: 0 0 15px rgba(77, 227, 75, 0.4);
             font-family: inherit;
             font-weight: 600;
@@ -254,13 +266,13 @@
         }
 
         #restartButton {
-            padding: 1.8vh 4.5vw;
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.5);
+            padding: 1.8vh 4.5vw; /* 調整 */
+            background: rgba(255, 255, 255, 0.1); /* 背景を透明度の低い白に */
+            border: 1px solid rgba(255, 255, 255, 0.5); /* ボーダーを薄い白に */
             border-bottom-color: rgba(255, 255, 255, 0.3);
             border-right-color: rgba(255, 255, 255, 0.3);
             border-radius: 12px;
-            color: rgba(77, 227, 75, 1);
+            color: rgba(77, 227, 75, 1); /* ボタン文字色を緑に */
             font-size: clamp(1.5rem, 5vw, 2.2rem);
             font-weight: 700;
             cursor: pointer;
@@ -272,7 +284,7 @@
         }
 
         #restartButton:hover {
-            background: rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.2); /* ホバー時の背景を少し濃く */
             box-shadow: 0 15px 40px rgba(0, 0, 0, 0.25);
             transform: translateY(-5px) translateZ(25px);
         }
@@ -288,7 +300,7 @@
             left: 0;
             width: 100vw;
             height: 100vh;
-            background: rgba(0, 0, 0, 0.95);
+            background: rgba(0, 0, 0, 0.95); /* 開始画面の背景をほぼ黒に */
             color: white;
             display: flex;
             flex-direction: column;
@@ -313,21 +325,21 @@
         #startScreen p {
             font-size: clamp(2rem, 7vw, 3.5rem);
             font-weight: 700;
-            color: #ffffff;
+            color: #ffffff; /* 開始画面の文字を白に */
             transform: translateZ(8px);
-            margin-bottom: 3.5vh;
+            margin-bottom: 3.5vh; /* 調整 */
         }
 
         #startScreen span {
             font-size: clamp(0.9rem, 3.5vw, 1.5rem);
-            opacity: 0.7;
-            color: #cccccc;
+            opacity: 0.7; /* 不透明度を調整 */
+            color: #cccccc; /* 薄いグレーに調整 */
             transform: translateZ(5px);
         }
     </style>
 </head>
 <body>
-    <canvas id="radarCanvas"></canvas>
+    <div id="backgroundRotator"></div> <canvas id="radarCanvas"></canvas>
     <div id="scoreDisplay">0</div>
     <div id="comboDisplay"></div>
     <div id="gameOverScreen">
@@ -350,6 +362,7 @@
         const finalScore = document.getElementById("finalScore");
         const restartButton = document.getElementById("restartButton");
         const startScreen = document.getElementById("startScreen");
+        const backgroundRotator = document.getElementById("backgroundRotator"); // 背景回転要素を取得
 
         let enemies = [];
         let playerAngle = 0; // デバイスの向き（マップの回転）
@@ -418,7 +431,7 @@
             comboDisplay.textContent = "";
             comboDisplay.classList.remove("active");
             gameOverScreen.classList.remove("visible");
-            playerAngle = 0;
+            playerAngle = 0; // ゲーム開始時に角度をリセット
             if (enemySpawnInterval) clearInterval(enemySpawnInterval);
             enemySpawnInterval = setInterval(spawnEnemy, 1500);
             gameLoop();
@@ -429,11 +442,13 @@
                 audioContext = new (window.AudioContext || window.webkitAudioContext)();
             }
 
+            // DeviceOrientationEventとDeviceMotionEventの両方の許可をリクエスト
             if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
                 DeviceOrientationEvent.requestPermission()
                     .then(permissionState => {
                         if (permissionState === 'granted') {
                             window.addEventListener("deviceorientation", handleDeviceOrientation);
+                            // DeviceMotionEventの許可リクエストは不要な場合が多いですが、念のため
                             if (typeof DeviceMotionEvent !== 'undefined' && typeof DeviceMotionEvent.requestPermission === 'function') {
                                 DeviceMotionEvent.requestPermission()
                                     .then(motionPermissionState => {
@@ -443,18 +458,18 @@
                                             initGame();
                                         } else {
                                             alert('加速度センサーの利用が拒否されました。体での射撃ができません。');
-                                            startScreen.classList.add('hidden');
+                                            startScreen.classList.add('hidden'); // ジャイロのみで開始
                                             initGame();
                                         }
                                     })
                                     .catch(error => {
                                         console.error("DeviceMotionEvent.requestPermission error:", error);
                                         alert('加速度センサーの許可リクエスト中にエラーが発生しました。体での射撃はできません。');
-                                        startScreen.classList.add('hidden');
+                                        startScreen.classList.add('hidden'); // ジャイロのみで開始
                                         initGame();
                                     });
                             } else {
-                                window.addEventListener("devicemotion", handleDeviceMotion);
+                                window.addEventListener("devicemotion", handleDeviceMotion); // iOS13以外
                                 startScreen.classList.add('hidden');
                                 initGame();
                             }
@@ -467,6 +482,7 @@
                         alert('センサーの許可リクエスト中にエラーが発生しました。お使いのデバイスが対応しているか確認してください。');
                     });
             } else {
+                // iOS 13より前のバージョンや、requestPermissionが不要なブラウザ
                 window.addEventListener("deviceorientation", handleDeviceOrientation);
                 window.addEventListener("devicemotion", handleDeviceMotion);
                 startScreen.classList.add('hidden');
@@ -475,20 +491,33 @@
         }
         function handleDeviceOrientation(e) {
             if (e.alpha !== null) {
-                playerAngle = e.alpha * Math.PI / 180;
+                // デバイスのZ軸周りの回転 (方位) をプレイヤーアングルとして使用
+                // マップがスマホの動きの逆向きに動くようにするため、符号を反転させない
+                playerAngle = e.alpha * Math.PI / 180; // 0-360度をラジアンに変換
+
+                // 背景画像をプレイヤーの回転と連動させる
+                // 背景画像はプレイヤーが回るのと同じ方向に回したいので、-e.alpha にする
+                backgroundRotator.style.transform = `rotate(${-e.alpha}deg)`; 
             }
         }
 
         function handleDeviceMotion(e) {
             if (isGameOver || accelerationShootCooldown) return;
+
+            // 重力加速度を考慮しない線形加速度を取得 (Z軸は通常、デバイスの画面に垂直な方向)
             const linearAccelerationZ = e.accelerationIncludingGravity.z; 
+
+            // Z軸の加速度が上向きに急激に変化した場合を検出
+            // デバイスを「持ち上げる」動きは、Z軸の加速度がプラス方向に大きくなる
             if (linearAccelerationZ > SHOOT_ACCELERATION_THRESHOLD) {
+                // 加速度がしきい値を超えたら発射
                 triggerShootAction();
                 accelerationShootCooldown = true;
                 setTimeout(() => {
                     accelerationShootCooldown = false;
                 }, ACCELERATION_COOLDOWN_TIME);
             }
+            // lastZAcceleration = linearAccelerationZ; // 現状未使用だが、より高度なフィルタリングに使う場合に備えて残しても良い
         }
 
         function spawnEnemy() {
@@ -513,6 +542,7 @@
                     generateSound(440, 0.05, 'sawtooth', 0.3);
                 }
                 if (e.distance < 100 && Math.random() < 0.1) {
+                    // 敵のワールド座標を計算し、パーティクルを生成
                     const ex = cx + e.distance * Math.cos(e.angle + playerAngle);
                     const ey = cy + e.distance * Math.sin(e.angle + playerAngle);
                     createEnemyParticle(ex, ey);
@@ -555,14 +585,14 @@
 
             // 背景のランダムなドット
             for (let i = 0; i < 60; i++) {
-                ctx.fillStyle = `rgba(255, 255, 255, ${0.01 + Math.random() * 0.03})`;
+                ctx.fillStyle = `rgba(255, 255, 255, ${0.01 + Math.random() * 0.03})`; /* 白いドットに */
                 ctx.beginPath();
                 ctx.arc(Math.random() * canvas.width, Math.random() * canvas.height, 0.7, 0, 2 * Math.PI);
                 ctx.fill();
             }
 
             // レーダーの円
-            ctx.strokeStyle = "rgba(255, 255, 255, 0.1)";
+            ctx.strokeStyle = "rgba(255, 255, 255, 0.1)"; /* レーダーの線を薄い白に */
             ctx.lineWidth = 0.5;
             for (let i = 1; i <= 5; i++) {
                 ctx.beginPath();
@@ -571,37 +601,40 @@
             }
 
             // プレイヤー（中心のドット）
-            ctx.fillStyle = "#4de34b";
+            ctx.fillStyle = "#4de34b"; /* プレイヤーを緑に設定 */
             ctx.beginPath();
             ctx.arc(cx, cy, 4, 0, 2 * Math.PI);
             ctx.fill();
 
             // 銃の照準 (常に画面上部を指すように固定)
-            ctx.strokeStyle = "rgba(77, 227, 75, 0.8)";
+            ctx.strokeStyle = "rgba(77, 227, 75, 0.8)"; /* 照準を緑に設定 */
             ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.moveTo(cx, cy);
+            // 照準は常に画面の上方向 (CanvasのY軸負方向) を指す
             ctx.lineTo(cx, cy - 80); 
             ctx.stroke();
 
             // 敵の描画
             enemies.forEach(e => {
+                // 敵の角度にプレイヤーアングル（デバイスの向き）を適用して回転させる
                 const rotatedAngle = e.angle + playerAngle;
                 const ex = cx + e.distance * Math.cos(rotatedAngle);
                 const ey = cy + e.distance * Math.sin(rotatedAngle);
 
+                // ここで敵のサイズを直接設定
                 const enemySize = 12; 
                 
-                let enemyColor = "rgba(255, 255, 255, 0.8)";
+                let enemyColor = "rgba(255, 255, 255, 0.8)"; /* 基本の敵の色を白に */
                 let doBlink = false;
 
                 if (e.distance < 70) {
-                    enemyColor = "rgba(255, 77, 77, 0.9)";
+                    enemyColor = "rgba(255, 77, 77, 0.9)"; /* 近い敵は赤に（警告色として維持） */
                     doBlink = (Math.floor(Date.now() / 100) % 2 === 0);
                 } else if (e.distance < 150) {
-                    enemyColor = "rgba(255, 200, 0, 0.9)";
+                    enemyColor = "rgba(255, 200, 0, 0.9)"; /* 中距離の敵は黄色に（警告色として維持） */
                 }
-                ctx.fillStyle = doBlink ? "rgba(255, 77, 77, 1)" : enemyColor;
+                ctx.fillStyle = doBlink ? "rgba(255, 77, 77, 1)" : enemyColor; /* 点滅も赤で */
                 ctx.beginPath();
                 ctx.arc(ex, ey, enemySize, 0, 2 * Math.PI);
                 ctx.fill();
@@ -640,20 +673,21 @@
         }
 
         function createGlassShatterEffect(x, y) {
-            const numParticles = 10;
+            const numParticles = 10; // 生成する破片の数
             for (let i = 0; i < numParticles; i++) {
                 const particle = document.createElement("div");
                 particle.className = "glass-shatter-particle";
                 
-                const size = Math.random() * 8 + 3;
+                const size = Math.random() * 8 + 3; // 破片のサイズ
                 particle.style.width = `${size}px`;
                 particle.style.height = `${size}px`;
 
-                const dx = (Math.random() - 0.5) * 150;
-                const dy = (Math.random() - 0.5) * 150;
-                const rot = Math.random() * 360;
-                const scl = Math.random() * 0.5 + 0.5;
-                const dz = Math.random() * 50 - 25;
+                // ランダムな移動量と回転量、スケールを設定
+                const dx = (Math.random() - 0.5) * 150; // X方向の移動量
+                const dy = (Math.random() - 0.5) * 150; // Y方向の移動量
+                const rot = Math.random() * 360; // 回転角度
+                const scl = Math.random() * 0.5 + 0.5; // スケール
+                const dz = Math.random() * 50 - 25; // Z方向の移動量（奥行き感）
 
                 particle.style.left = `${x}px`;
                 particle.style.top = `${y}px`;
@@ -663,10 +697,12 @@
                 particle.style.setProperty('--scl', `${scl}`);
                 particle.style.setProperty('--dz', `${dz}px`);
 
-                particle.style.animation = `shatter 0.6s cubic-bezier(0.19, 1, 0.22, 1) forwards`;
-                particle.style.animationDelay = `${Math.random() * 0.1}s`;
+                particle.style.animation = `shatter 0.6s cubic-bezier(0.19, 1, 0.22, 1) forwards`; // アニメーション適用
+                particle.style.animationDelay = `${Math.random() * 0.1}s`; // 少し遅延させてバラつきを出す
 
                 document.body.appendChild(particle);
+
+                // アニメーション終了後に要素を削除
                 setTimeout(() => particle.remove(), 600);
             }
         }
@@ -699,13 +735,16 @@
             gameOverScreen.classList.add("visible");
         }
 
+        // 射撃アクションをまとめた関数
         function triggerShootAction() {
             if (isGameOver || shootCooldown) return;
 
+            // 画面の中央から上に向かって射撃ビジュアルを表示
             const shootX = cx;
-            const shootY = cy - 50;
+            const shootY = cy - 50; // プレイヤーから少し上に表示
             createShootVisual(shootX, shootY);
             generateSound(880, 0.08, 'sine', 0.4);
+            // 撃った側の「ドンッ！」と強いバイブ
             vibrateDevice([100, 50, 100]); 
             
             shootCooldown = true;
@@ -714,20 +753,24 @@
             }, SHOOT_COOLDOWN_TIME);
 
             let hit = false;
-            const shootRange = Math.PI / 15;
+            const shootRange = Math.PI / 15; // 射撃範囲
 
+            // 敵をフィルタリングして、射程内の敵を判定
             enemies = enemies.filter(e => {
-                const enemyRelativeAngle = normalizeAngle(e.angle + playerAngle);
-                const targetAngle = -Math.PI / 2;
+                // 敵の相対角度を計算 (プレイヤーの向きを考慮)
+                const enemyRelativeAngle = normalizeAngle(e.angle + playerAngle); // 敵の絶対角度にプレイヤーの回転を加算
+                
+                // 照準は常に画面上部（-PI/2 または 3PI/2）を向いている
+                const targetAngle = -Math.PI / 2; // 画面上部を指す固定の照準角度 (ラジアン)
                 const diff = Math.abs(normalizeAngle(enemyRelativeAngle - targetAngle));
                 
-                if (diff < shootRange && e.distance < 300) {
+                if (diff < shootRange && e.distance < 300) { // 射程距離の制限
                     e.health--;
                     if (e.health <= 0) {
-                        const ex = cx + e.distance * Math.cos(e.angle + playerAngle);
+                        const ex = cx + e.distance * Math.cos(e.angle + playerAngle); // 敵の現在の描画位置
                         const ey = cy + e.distance * Math.sin(e.angle + playerAngle);
                         createHitEffect(ex, ey);
-                        createGlassShatterEffect(ex, ey);
+                        createGlassShatterEffect(ex, ey); // 撃たれた敵にガラス破砕演出
                         const currentTime = performance.now();
                         if (currentTime - lastKillTime < COMBO_RESET_TIME) {
                             comboCount++;
@@ -759,6 +802,7 @@
                         updateScore(points);
                         showScorePopup(ex, ey, points, comboCount);
                         hit = true;
+                        // 撃破時のバイブレーションも変更
                         vibrateDevice([50, 20, 50, 20, 50]); 
                         generateSound(1000, 0.1, 'triangle', 0.5);
                         return false;
@@ -768,6 +812,7 @@
             });
         }
 
+        // 画面タップで射撃
         canvas.addEventListener("click", (event) => {
             triggerShootAction();
         });
@@ -779,14 +824,14 @@
         let enemySpawnInterval;
 
         window.onload = () => {
-            setCanvasDimensions();
+            setCanvasDimensions(); // ページロード時にCanvasのサイズと中心を設定
             startScreen.classList.remove('hidden');
         };
 
         startScreen.addEventListener('click', requestDeviceOrientationPermissionAndStartGame);
 
         window.addEventListener('resize', () => {
-            setCanvasDimensions();
+            setCanvasDimensions(); // リサイズ時にCanvasのサイズと中心を再設定
         });
     </script>
 </body>
