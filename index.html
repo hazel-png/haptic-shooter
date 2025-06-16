@@ -79,8 +79,8 @@
                 opacity: 1;
             }
             100% {
-                /* ここを調整: scale値を小さくして画面内に収める */
-                transform: translate(-50%, -50%) scale(3) translateZ(-30px); /* 8 -> 3 に変更、Zも調整 */
+                /* ここをさらに調整: scale値を小さくして画面中央付近に収める */
+                transform: translate(-50%, -50%) scale(1.5) translateZ(0px); /* 3 -> 1.5 に変更, Zも0に */
                 opacity: 0;
             }
         }
@@ -432,7 +432,7 @@
 
         function requestDeviceOrientationPermissionAndStartGame() {
             // 音声が不要な場合は、audioContext の初期化行をコメントアウトしたままにします。
-            // audioContext = new (window.AudioContext || window.webkitAudioContext)(); // この行をコメントアウトしたままにする
+            // audioContext = new (window.AudioContext || window.webkitAudioContext)(); 
 
             if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
                 DeviceOrientationEvent.requestPermission()
@@ -518,7 +518,7 @@
                 if (e.distance < 150 && !e.isApproaching) {
                     e.isApproaching = true;
                     vibrateDevice([30, 20, 30]);
-                    // generateSound(440, 0.05, 'sawtooth', 0.3); // コメントアウト済みのまま
+                    // generateSound(440, 0.05, 'sawtooth', 0.3); 
                 }
                 if (e.distance < 100 && Math.random() < 0.1) {
                     const ex = cx + e.distance * Math.cos(e.angle + playerAngle);
@@ -697,7 +697,7 @@
             if (isGameOver) return;
             isGameOver = true;
             vibrateDevice([200, 100, 200, 100, 200]);
-            // generateSound(200, 0.4, 'square', 0.6); // コメントアウト済みのまま
+            // generateSound(200, 0.4, 'square', 0.6); 
             if (enemySpawnInterval) clearInterval(enemySpawnInterval);
             finalScore.textContent = `FINAL SCORE: ${score}`;
             gameOverScreen.classList.add("visible");
@@ -709,7 +709,7 @@
             const shootX = cx;
             const shootY = cy - 50;
             createShootVisual(shootX, shootY);
-            // generateSound(880, 0.08, 'sine', 0.4); // コメントアウト済みのまま
+            // generateSound(880, 0.08, 'sine', 0.4); 
             vibrateDevice([100, 50, 100]); 
             
             shootCooldown = true;
@@ -725,8 +725,8 @@
                 const targetAngle = -Math.PI / 2;
                 const diff = Math.abs(normalizeAngle(enemyRelativeAngle - targetAngle));
                 
-                // ここを調整: ヒット判定の距離を短くする
-                if (diff < shootRange && e.distance < 200) { // 300 -> 200 に変更
+                // ここを調整: ヒット判定の距離をさらに短くする
+                if (diff < shootRange && e.distance < 100) { // 200 -> 100 に変更
                     e.health--;
                     if (e.health <= 0) {
                         const ex = cx + e.distance * Math.cos(e.angle + playerAngle);
@@ -746,7 +746,7 @@
                             if (comboCount % 3 === 0) {
                                 vibrateDevice([30, 20, 30]);
                             }
-                            // generateSound(800 + comboCount * 50, 0.08, 'triangle', 0.6); // コメントアウト済みのまま
+                            // generateSound(800 + comboCount * 50, 0.08, 'triangle', 0.6); 
                         } else {
                             comboDisplay.classList.remove("active");
                             comboDisplay.style.transition = 'opacity 0.5s ease-out, transform 0.5s ease-in';
@@ -765,7 +765,7 @@
                         showScorePopup(ex, ey, points, comboCount);
                         hit = true;
                         vibrateDevice([50, 20, 50, 20, 50]); 
-                        // generateSound(1000, 0.1, 'triangle', 0.5); // コメントアウト済みのまま
+                        // generateSound(1000, 0.1, 'triangle', 0.5); 
                         return false;
                     }
                 }
